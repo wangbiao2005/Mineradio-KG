@@ -15,7 +15,9 @@ Mineradio 是一款 Windows 桌面沉浸式音乐播放器，把天气电台、�
 
 ## 下载
 
-请从 Releases 页面下载最新安装包 `Mineradio-x.x.x-Setup.exe`。
+[**👉 点击下载最新版 Mineradio-1.1.1-Setup.exe**](https://github.com/wangbiao2005/Mineradio-KG/releases/download/v1.1.1/Mineradio-1.1.1-Setup.exe)
+
+所有版本详见 [Releases 页面](https://github.com/wangbiao2005/Mineradio-KG/releases)。
 
 ## 使用说明
 
@@ -31,7 +33,7 @@ npm run build:win
 
 ## 音源说明
 
-本改编版使用酷狗（KG）音乐作为搜索和播放音源，通过 LX 音源桥接框架接入。非酷狗官方客户端，请遵守对应平台用户协议。
+本改编版基于**落雪音乐（LX Music）**音源框架，接入酷狗（KG）音乐作为搜索和播放音源，**完全免费听歌**，无需登录即可使用全功能。非酷狗官方客户端，请遵守对应平台用户协议。
 
 ## 用户数据与隐私
 
