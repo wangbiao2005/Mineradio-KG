@@ -973,9 +973,10 @@ body.login-guide-active #login-guide-canvas{opacity:1}
 .lyric-source-seg button.has-custom::after{content:'';display:inline-block;width:5px;height:5px;margin-left:5px;border-radius:50%;background:rgba(126,226,168,.86);vertical-align:middle;box-shadow:0 0 10px rgba(126,226,168,.50)}
 
 /* ---------- 加载/拖放 ---------- */
-#loading-overlay{position:fixed;inset:0;z-index:40;pointer-events:none;display:none}
-#loading-overlay.show{display:block}
-.spinner{display:none}
+#loading-overlay{position:fixed;inset:0;z-index:40;pointer-events:none;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px)}
+#loading-overlay.show{display:flex}
+#loading-overlay .spinner{display:block;width:32px;height:32px;border:3px solid rgba(255,255,255,.12);border-top-color:rgba(0,245,212,.72);border-radius:50%;animation:spin .8s linear infinite}
+#loading-overlay .loading-msg{font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.5px}
 @keyframes spin{to{transform:rotate(360deg)}}
 #drop-overlay{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;backdrop-filter:blur(10px)}
 #drop-overlay.show{display:flex}
@@ -2459,7 +2460,7 @@ html.control-glass-svg-ok #visual-guide-btn:hover{
 <input type="file" id="background-image-input" accept=".jpg,.jpeg,.png,.webp,.mp4,.webm,.mov,image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" style="display:none">
 <div id="drop-overlay"><div class="drop-text">拖放音乐、封面或落雪歌单</div></div>
 <div id="free-camera-hint"><b>自由镜头</b> R 固定/退出 · WASD 移动 · 鼠标转向 · Shift 加速 · Space/Ctrl 升降 · Q/E 轻微旋转 · 滚轮景深 · K 回正</div>
-<div id="loading-overlay"><div class="spinner"></div></div>
+<div id="loading-overlay"><div class="spinner"></div><div class="loading-msg"></div></div>
 
 <canvas id="login-guide-canvas" aria-hidden="true"></canvas>
 
@@ -17417,6 +17418,16 @@ var SEARCH_HISTORY_STORE_KEY = 'mineradio-search-history';
 var $input = document.getElementById('search-input');
 var $results = document.getElementById('search-results');
 var $loading = document.getElementById('loading-overlay');
+function showLoading(msg) {
+  if (!$loading) return;
+  var msgEl = $loading.querySelector('.loading-msg');
+  if (msgEl) msgEl.textContent = msg || '';
+  $loading.classList.add('show');
+}
+function hideLoading() {
+  if (!$loading) return;
+  $loading.classList.remove('show');
+}
 function syncSearchAreaResultState() {
   var searchArea = document.getElementById('search-area');
   if (!searchArea || !$results) return;
@@ -20420,60 +20431,71 @@ async function importLxmcFile(file) {
     var totalSkipped = 0;
     var totalNotFound = 0;
     var createdCount = 0;
+    var CONCURRENCY = 8;
+
+    // 辅助：单首歌匹配KG
+    async function matchOneSongKG(song) {
+      if (!song || !song.name) return null;
+      if (song.source === 'kg' && song.meta) {
+        return {
+          id: String(song.meta.songId || ''),
+          songmid: String(song.meta.songId || ''),
+          name: song.name,
+          artist: song.singer || '',
+          album: song.meta.albumName || '',
+          cover: song.meta.picUrl || '',
+          source: 'kg',
+          hash: song.meta.hash || (song.meta._qualitys && song.meta._qualitys['128k'] && song.meta._qualitys['128k'].hash) || '',
+        };
+      }
+      try {
+        var keywords = song.name + ' ' + (song.singer || '');
+        var result = await apiJson('/api/lx-search?keywords=' + encodeURIComponent(keywords) + '&source=kg&limit=5', { timeoutMs: 12000 });
+        if (result && result.ok && Array.isArray(result.songs) && result.songs.length) {
+          var best = findBestKGMatch(result.songs, song.name, song.singer || '');
+          if (best) {
+            return {
+              id: String(best.id || best.songmid || ''),
+              songmid: String(best.songmid || best.id || ''),
+              name: best.name || song.name,
+              artist: best.artist || best.singer || song.singer || '',
+              album: best.album || best.albumName || '',
+              cover: best.cover || best.picUrl || '',
+              source: 'kg',
+              hash: best.hash || '',
+            };
+          }
+        }
+      } catch (e) { /* not found */ }
+      return null;
+    }
 
     for (var p = 0; p < data.data.length; p++) {
       var plData = data.data[p];
       if (!plData || !Array.isArray(plData.list) || !plData.list.length) continue;
       
       var listName = playlistNames[plData.id] || playlistNames[plData.name] || plData.name || ('落雪歌单 ' + (p + 1));
-      showToast('正在导入: ' + listName + ' (' + plData.list.length + '首)...');
+      var totalSongs = plData.list.length;
+      showLoading('导入: ' + listName + ' (' + totalSongs + '首)');
 
-      // 3. 按KG匹配当前列表的歌曲
+      // 3. 并发匹配KG歌曲
       var matchedSongs = [];
       var notFound = [];
-      for (var s = 0; s < plData.list.length; s++) {
-        var song = plData.list[s];
-        if (!song || !song.name) continue;
-        
-        if (song.source === 'kg' && song.meta) {
-          matchedSongs.push({
-            id: String(song.meta.songId || ''),
-            songmid: String(song.meta.songId || ''),
-            name: song.name,
-            artist: song.singer || '',
-            album: song.meta.albumName || '',
-            cover: song.meta.picUrl || '',
-            source: 'kg',
-            hash: song.meta.hash || (song.meta._qualitys && song.meta._qualitys['128k'] && song.meta._qualitys['128k'].hash) || '',
-          });
-          continue;
-        }
-        
-        try {
-          var keywords = song.name + ' ' + (song.singer || '');
-          var result = await apiJson('/api/lx-search?keywords=' + encodeURIComponent(keywords) + '&source=kg&limit=5', { timeoutMs: 15000 });
-          if (result && result.ok && Array.isArray(result.songs) && result.songs.length) {
-            var best = findBestKGMatch(result.songs, song.name, song.singer || '');
-            if (best) {
-              matchedSongs.push({
-                id: String(best.id || best.songmid || ''),
-                songmid: String(best.songmid || best.id || ''),
-                name: best.name || song.name,
-                artist: best.artist || best.singer || song.singer || '',
-                album: best.album || best.albumName || '',
-                cover: best.cover || best.picUrl || '',
-                source: 'kg',
-                hash: best.hash || '',
-              });
-              continue;
-            }
+      var progress = 0;
+      for (var b = 0; b < totalSongs; b += CONCURRENCY) {
+        var batchEnd = Math.min(b + CONCURRENCY, totalSongs);
+        var batch = [];
+        for (var s = b; s < batchEnd; s++) batch.push(plData.list[s]);
+        var results = await Promise.all(batch.map(function(song) { return matchOneSongKG(song); }));
+        for (var r = 0; r < results.length; r++) {
+          if (results[r]) matchedSongs.push(results[r]);
+          else {
+            var orig = batch[r];
+            if (orig && orig.name) notFound.push(orig.name + ' - ' + (orig.singer || ''));
           }
-        } catch (e) { /* fall through */ }
-        notFound.push(song.name + ' - ' + (song.singer || ''));
-        
-        if ((s + 1) % 20 === 0) {
-          showToast(listName + ': ' + (s + 1) + '/' + plData.list.length + ' (' + matchedSongs.length + '首匹配)');
         }
+        progress = batchEnd;
+        showLoading('导入: ' + listName + ' - ' + progress + '/' + totalSongs + ' (' + matchedSongs.length + '首匹配)');
       }
 
       if (!matchedSongs.length) {
@@ -20483,6 +20505,7 @@ async function importLxmcFile(file) {
       }
 
       // 4. 创建歌单
+      showLoading('创建歌单: ' + listName + '...');
       var createResult = await apiJson('/api/local/playlist/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -20495,25 +20518,24 @@ async function importLxmcFile(file) {
       var pid = createResult.playlist.id;
       createdCount++;
       
-      // 5. 添加歌曲
+      // 5. 并发添加歌曲 (fast, local write)
+      var addResults = await Promise.all(matchedSongs.map(function(ms) {
+        return apiJson('/api/local/playlist/add-song', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pid: pid, id: ms.id, songmid: ms.songmid,
+            name: ms.name, artist: ms.artist,
+            album: ms.album || '', cover: ms.cover || '',
+            source: 'kg', hash: ms.hash || ''
+          })
+        }).catch(function(){ return null; });
+      }));
       var added = 0;
       var skipped = 0;
-      for (var a = 0; a < matchedSongs.length; a++) {
-        try {
-          var ms = matchedSongs[a];
-          var addResult = await apiJson('/api/local/playlist/add-song', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              pid: pid, id: ms.id, songmid: ms.songmid,
-              name: ms.name, artist: ms.artist,
-              album: ms.album || '', cover: ms.cover || '',
-              source: 'kg', hash: ms.hash || ''
-            })
-          });
-          if (addResult && addResult.success) added++;
-          else skipped++;
-        } catch (e) { skipped++; }
+      for (var ar = 0; ar < addResults.length; ar++) {
+        if (addResults[ar] && addResults[ar].success) added++;
+        else skipped++;
       }
       totalImported += added;
       totalSkipped += skipped;
@@ -20521,6 +20543,7 @@ async function importLxmcFile(file) {
       showToast(listName + ': ' + added + '首已导入' + (skipped ? ', ' + skipped + '首已存在' : ''));
     }
     
+    hideLoading();
     await refreshLocalPlaylists();
     
     var msg = '落雪歌单导入完成！' + createdCount + '个歌单, ' + totalImported + '首已导入';
