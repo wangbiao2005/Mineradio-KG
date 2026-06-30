@@ -1946,10 +1946,19 @@ html.control-glass-svg-ok #visual-guide-btn:hover{
 <section id="empty-home" aria-label="Mineradio home">
   <div class="empty-home-shell">
     <div class="home-hero">
-      <div class="home-hero-inner home-construction-inner">
-        <div class="home-title home-construction-title">🚧此处施工，敬请期待🚧</div>
+      <div class="home-hero-inner">
+      <div class="home-kicker" id="home-date-kicker">Mineradio</div>
+      <div class="home-title" id="home-date-title">-</div>
+      <div class="home-sub" id="home-date-sub">-</div>
+      <div class="home-weather-meta" id="home-weather-meta"></div>
+      <div class="home-quick-row">
         <button class="home-chip home-console-chip" type="button" onclick="openHomePlayerConsole()">展开播放器控制台</button>
       </div>
+      <div class="home-visual" id="empty-home-visual">
+        <div class="home-sleeve"></div>
+        <div class="home-disc"></div>
+      </div>
+    </div>
     </div>
 
     <div class="home-grid">
@@ -15513,17 +15522,29 @@ function renderHomeTiles() {
   row._homeTiles = tiles;
   renderHomeMosaic(tiles);
 }
+function formatHomeDate() {
+  var now = new Date();
+  var weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+  var m = now.getMonth() + 1;
+  var d = now.getDate();
+  var w = weekDays[now.getDay()];
+  return m + '月' + d + '日 星期' + w;
+}
 function renderHomeDiscover() {
-  var sub = document.getElementById('home-subtitle');
+  var sub = document.getElementById('home-date-sub');
   var loggedOutHome = !homeDiscoverState.loggedIn && !hasAnyPlatformLogin();
   var weather = homeWeatherRadioState.weather;
   var radio = homeWeatherRadioState.radio;
   var weatherLocation = weather && weather.location && weather.location.name || homeWeatherRadioState.city || '上海';
-  var weatherTitle = document.getElementById('home-weather-title');
-  var weatherKicker = document.getElementById('home-weather-kicker');
+  var dateTitle = document.getElementById('home-date-title');
+  var dateKicker = document.getElementById('home-date-kicker');
   var weatherMeta = document.getElementById('home-weather-meta');
-  if (weatherTitle) weatherTitle.textContent = '我的音乐库';
-  if (weatherKicker) weatherKicker.textContent = 'Mineradio · Your Library';
+  if (dateTitle) dateTitle.textContent = formatHomeDate();
+  if (dateKicker) {
+    var hour = new Date().getHours();
+    var greeting = hour < 6 ? '夜深了' : hour < 9 ? '早上好' : hour < 12 ? '上午好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : hour < 21 ? '晚上好' : '夜深了';
+    dateKicker.textContent = greeting + ' · Mineradio';
+  }
   if (sub) {
     if (loggedOutHome) {
       var likedCount = (localLikedSongs || []).length;
@@ -15541,12 +15562,13 @@ function renderHomeDiscover() {
     var meta = [];
     if (weather) {
       meta.push(weatherLocation);
-      meta.push(weather.label + ' · ' + Math.round(weather.temperature || 0) + '°');
+      meta.push(weather.label + ' ' + Math.round(weather.temperature || 0) + '°');
       meta.push('体感 ' + Math.round(weather.apparentTemperature || weather.temperature || 0) + '°');
       if (isFinite(weather.humidity)) meta.push('湿度 ' + Math.round(weather.humidity) + '%');
+      if (isFinite(weather.windSpeed) && weather.windSpeed > 0) meta.push('风速 ' + Math.round(weather.windSpeed) + ' km/h');
     } else {
       meta.push(weatherLocation);
-      meta.push(homeWeatherRadioState.error ? '天气暂不可用' : '正在整理天气');
+      meta.push(homeWeatherRadioState.error ? '天气暂不可用' : '正在获取天气...');
     }
     weatherMeta.innerHTML = meta.map(function(text){ return '<span class="home-weather-pill">' + escHtml(text) + '</span>'; }).join('');
   }
@@ -20422,7 +20444,7 @@ async function importLxmcFile(file) {
 
     // 2. 逐个列表处理
     var playlistNames = {
-      'love': '❤️ 我的收藏',
+      'love': '我的收藏',
       'list__name_love': '我的收藏',
       'default': '试听列表',
       'list__name_default': '试听列表'
