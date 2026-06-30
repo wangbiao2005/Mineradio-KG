@@ -3627,6 +3627,20 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pn === '/api/local/playlist/delete') {
+    try {
+      const body = req.method === 'POST' ? await readBody(req) : Object.fromEntries(url.searchParams);
+      const pid = String(body.pid || body.id || '');
+      if (!pid) { sendJSON(res, { ok: false, error: 'Missing pid' }, 400); return; }
+      const idx = localPlaylistData.playlists.findIndex(p => p.id === pid);
+      if (idx === -1) { sendJSON(res, { ok: false, error: 'Playlist not found' }, 404); return; }
+      localPlaylistData.playlists.splice(idx, 1);
+      saveLocalPlaylists();
+      sendJSON(res, { ok: true, success: true });
+    } catch (err) { sendJSON(res, { ok: false, error: err.message }, 500); }
+    return;
+  }
+
   if (pn === '/api/local/playlist/tracks') {
     try {
       const pid = String(url.searchParams.get('id') || '');

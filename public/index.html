@@ -1323,6 +1323,8 @@ body.desktop-shell.diy-mode #bottom-bar.stage-mode{left:50%;width:min(1080px,cal
 .pl-load-more{width:100%;height:30px;margin:8px 0 2px;display:flex;align-items:center;justify-content:center}
 .pl-name{font-size:12px;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl-sub{font-size:10.5px;color:rgba(255,255,255,.42);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-delete-btn{width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:transparent;color:rgba(255,255,255,.25);font-size:16px;font-weight:300;cursor:pointer;flex-shrink:0;transition:all .2s;line-height:1;padding:0;margin-left:2px}
+.pl-delete-btn:hover{background:rgba(239,68,68,.20);color:rgba(239,68,68,.90)}
 .pl-section-label{margin:14px 2px 7px;font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:rgba(0,245,212,.50)}
 .pl-inline-detail{position:relative;margin:-1px 0 14px;padding:0 0 12px;scroll-margin-top:16px}
 .pl-detail-sticky{position:sticky;top:-10px;z-index:4;margin:0 -2px 10px;padding:8px 2px 10px;border-radius:14px;background:linear-gradient(180deg,rgba(14,17,24,.92),rgba(14,17,24,.76) 68%,rgba(14,17,24,0));backdrop-filter:blur(20px) saturate(1.18);-webkit-backdrop-filter:blur(20px) saturate(1.18)}
@@ -19740,6 +19742,20 @@ async function refreshLocalPlaylists() {
     }
   } catch (e) { console.warn('[LocalPlaylist]', e); }
 }
+async function deleteLocalPlaylist(pid, name) {
+  if (!pid) return;
+  var displayName = name || '此歌单';
+  if (!confirm('确定要删除「' + displayName + '」吗？此操作不可撤销。')) return;
+  try {
+    var r = await apiJson('/api/local/playlist/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pid: pid }) });
+    if (r && r.ok && r.success) {
+      showToast('歌单「' + displayName + '」已删除');
+      await refreshLocalPlaylists();
+    } else {
+      showToast('删除失败: ' + (r && r.error ? r.error : '未知错误'));
+    }
+  } catch (e) { showToast('删除失败'); console.warn('[DeletePlaylist]', e); }
+}
 async function createLocalPlaylistFromCollect() {
   var input = document.getElementById('collect-new-name');
   var name = input ? input.value.trim() : '';
@@ -20004,6 +20020,7 @@ function renderUserPlaylistsList(opts) {
     return '<div class="pl-card' + expanded + '" data-playlist-provider="' + provider + '" data-playlist-id="' + escHtml(String(pl.id || '')) + '" data-playlist-title="' + escHtml(pl.name || '') + '">' +
       imgTag +
       '<div style="flex:1;min-width:0"><div class="pl-name">' + escHtml(pl.name) + '<span class="tag-source ' + provider + '" style="margin-left:6px;vertical-align:1px">' + providerLabel + '</span></div><div class="pl-sub">' + pl.trackCount + ' 首 · ' + escHtml(pl.creator || '') + '</div></div>' +
+      (provider === 'local' ? '<button class="pl-delete-btn" title="删除歌单" onclick="deleteLocalPlaylist(\'' + escHtml(String(pl.id || '')) + '\', \'' + escHtml(pl.name || '') + '\'); event.stopPropagation();">×</button>' : '') +
     '</div>' + playlistPanelDetailHtml(pl, provider);
   }
   var groups = [
@@ -20392,116 +20409,123 @@ async function importLxmcFile(file) {
       return;
     }
 
-    // 2. 收集所有歌曲
-    var allSongs = [];
+    // 2. 逐个列表处理
+    var playlistNames = {
+      'love': '❤️ 我的收藏',
+      'list__name_love': '我的收藏',
+      'default': '试听列表',
+      'list__name_default': '试听列表'
+    };
+    var totalImported = 0;
+    var totalSkipped = 0;
+    var totalNotFound = 0;
+    var createdCount = 0;
+
     for (var p = 0; p < data.data.length; p++) {
-      var pl = data.data[p];
-      if (pl && Array.isArray(pl.list)) allSongs = allSongs.concat(pl.list);
-    }
-    if (!allSongs.length) { showToast('歌单中没有歌曲'); return; }
-
-    showToast('正在导入 ' + allSongs.length + ' 首歌曲，通过KG搜索匹配...');
-
-    // 3. 按KG匹配歌曲
-    var matchedSongs = [];
-    var notFound = [];
-    var batchSize = 5;
-    for (var s = 0; s < allSongs.length; s++) {
-      var song = allSongs[s];
-      if (!song || !song.name) continue;
+      var plData = data.data[p];
+      if (!plData || !Array.isArray(plData.list) || !plData.list.length) continue;
       
-      // KG源的歌直接用KG ID
-      if (song.source === 'kg' && song.meta) {
-        matchedSongs.push({
-          id: String(song.meta.songId || ''),
-          songmid: String(song.meta.songId || ''),
-          name: song.name,
-          artist: song.singer || '',
-          album: song.meta.albumName || '',
-          cover: song.meta.picUrl || '',
-          source: 'kg',
-          hash: song.meta.hash || (song.meta._qualitys && song.meta._qualitys['128k'] && song.meta._qualitys['128k'].hash) || '',
-        });
+      var listName = playlistNames[plData.id] || playlistNames[plData.name] || plData.name || ('落雪歌单 ' + (p + 1));
+      showToast('正在导入: ' + listName + ' (' + plData.list.length + '首)...');
+
+      // 3. 按KG匹配当前列表的歌曲
+      var matchedSongs = [];
+      var notFound = [];
+      for (var s = 0; s < plData.list.length; s++) {
+        var song = plData.list[s];
+        if (!song || !song.name) continue;
+        
+        if (song.source === 'kg' && song.meta) {
+          matchedSongs.push({
+            id: String(song.meta.songId || ''),
+            songmid: String(song.meta.songId || ''),
+            name: song.name,
+            artist: song.singer || '',
+            album: song.meta.albumName || '',
+            cover: song.meta.picUrl || '',
+            source: 'kg',
+            hash: song.meta.hash || (song.meta._qualitys && song.meta._qualitys['128k'] && song.meta._qualitys['128k'].hash) || '',
+          });
+          continue;
+        }
+        
+        try {
+          var keywords = song.name + ' ' + (song.singer || '');
+          var result = await apiJson('/api/lx-search?keywords=' + encodeURIComponent(keywords) + '&source=kg&limit=5', { timeoutMs: 15000 });
+          if (result && result.ok && Array.isArray(result.songs) && result.songs.length) {
+            var best = findBestKGMatch(result.songs, song.name, song.singer || '');
+            if (best) {
+              matchedSongs.push({
+                id: String(best.id || best.songmid || ''),
+                songmid: String(best.songmid || best.id || ''),
+                name: best.name || song.name,
+                artist: best.artist || best.singer || song.singer || '',
+                album: best.album || best.albumName || '',
+                cover: best.cover || best.picUrl || '',
+                source: 'kg',
+                hash: best.hash || '',
+              });
+              continue;
+            }
+          }
+        } catch (e) { /* fall through */ }
+        notFound.push(song.name + ' - ' + (song.singer || ''));
+        
+        if ((s + 1) % 20 === 0) {
+          showToast(listName + ': ' + (s + 1) + '/' + plData.list.length + ' (' + matchedSongs.length + '首匹配)');
+        }
+      }
+
+      if (!matchedSongs.length) {
+        showToast(listName + ': 未能匹配任何KG歌曲，跳过');
+        totalNotFound += notFound.length;
         continue;
       }
-      
-      // 非KG源：搜索KG找匹配
-      try {
-        var keywords = song.name + ' ' + (song.singer || '');
-        var result = await apiJson('/api/lx-search?keywords=' + encodeURIComponent(keywords) + '&source=kg&limit=5', { timeoutMs: 15000 });
-        if (result && result.ok && Array.isArray(result.songs) && result.songs.length) {
-          var best = findBestKGMatch(result.songs, song.name, song.singer || '');
-          if (best) {
-            matchedSongs.push({
-              id: String(best.id || best.songmid || ''),
-              songmid: String(best.songmid || best.id || ''),
-              name: best.name || song.name,
-              artist: best.artist || best.singer || song.singer || '',
-              album: best.album || best.albumName || '',
-              cover: best.cover || best.picUrl || '',
-              source: 'kg',
-              hash: best.hash || '',
-            });
-            continue;
-          }
-        }
-      } catch (e) { /* search failed, fall through to notFound */ }
-      notFound.push(song.name + ' - ' + (song.singer || ''));
-      
-      // 进度提示
-      if ((s + 1) % 10 === 0 || s === allSongs.length - 1) {
-        showToast('导入中: ' + (s + 1) + '/' + allSongs.length + ' (' + matchedSongs.length + '首匹配)');
-      }
-    }
 
-    // 4. 创建歌单并添加歌曲
-    if (!matchedSongs.length) {
-      showToast('未能匹配任何KG歌曲，请确认歌单包含有效歌曲');
-      return;
-    }
-    
-    var listName = (data.data[0] && data.data[0].name && data.data[0].name !== 'list__name_default') ? data.data[0].name : '落雪导入歌单';
-    var createResult = await apiJson('/api/local/playlist/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: listName })
-    });
-    if (!(createResult && createResult.ok && createResult.playlist)) {
-      showToast('创建歌单失败');
-      return;
-    }
-    var pid = createResult.playlist.id;
-    
-    var added = 0;
-    var skipped = 0;
-    for (var a = 0; a < matchedSongs.length; a++) {
-      try {
-        var ms = matchedSongs[a];
-        var addResult = await apiJson('/api/local/playlist/add-song', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pid: pid,
-            id: ms.id,
-            songmid: ms.songmid,
-            name: ms.name,
-            artist: ms.artist,
-            album: ms.album || '',
-            cover: ms.cover || '',
-            source: 'kg',
-            hash: ms.hash || ''
-          })
-        });
-        if (addResult && addResult.success) added++;
-        else skipped++;
-      } catch (e) { skipped++; }
+      // 4. 创建歌单
+      var createResult = await apiJson('/api/local/playlist/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: listName })
+      });
+      if (!(createResult && createResult.ok && createResult.playlist)) {
+        showToast(listName + ': 创建歌单失败');
+        continue;
+      }
+      var pid = createResult.playlist.id;
+      createdCount++;
+      
+      // 5. 添加歌曲
+      var added = 0;
+      var skipped = 0;
+      for (var a = 0; a < matchedSongs.length; a++) {
+        try {
+          var ms = matchedSongs[a];
+          var addResult = await apiJson('/api/local/playlist/add-song', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pid: pid, id: ms.id, songmid: ms.songmid,
+              name: ms.name, artist: ms.artist,
+              album: ms.album || '', cover: ms.cover || '',
+              source: 'kg', hash: ms.hash || ''
+            })
+          });
+          if (addResult && addResult.success) added++;
+          else skipped++;
+        } catch (e) { skipped++; }
+      }
+      totalImported += added;
+      totalSkipped += skipped;
+      totalNotFound += notFound.length;
+      showToast(listName + ': ' + added + '首已导入' + (skipped ? ', ' + skipped + '首已存在' : ''));
     }
     
     await refreshLocalPlaylists();
     
-    var msg = '落雪歌单导入完成！' + listName + ' - ' + added + '首已导入';
-    if (skipped) msg += ', ' + skipped + '首已存在';
-    if (notFound.length) msg += ', ' + notFound.length + '首未找到KG版本';
+    var msg = '落雪歌单导入完成！' + createdCount + '个歌单, ' + totalImported + '首已导入';
+    if (totalSkipped) msg += ', ' + totalSkipped + '首已存在';
+    if (totalNotFound) msg += ', ' + totalNotFound + '首未找到KG版本';
     showToast(msg);
     
   } catch (e) {
