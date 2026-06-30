@@ -1927,14 +1927,14 @@ html.control-glass-svg-ok #visual-guide-btn:hover{
     <div id="search-results"></div>
   </div>
   <div id="upload-actions">
-    <button id="upload-btn" class="icon-btn" onclick="document.getElementById('file-input').click()" title="导入音乐或封面">
+    <button id="upload-btn" class="icon-btn" onclick="document.getElementById('file-input').click()" title="导入音乐、封面或落雪歌单(.lxmc)">
       <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
     </button>
     <button id="clear-cover-btn" class="icon-btn" onclick="clearCustomCoverForCurrent()" title="取消自定义封面" aria-label="取消自定义封面">×</button>
     <div id="upload-tip" role="status" aria-live="polite">
       <button class="upload-tip-close" onclick="closeUploadTip(true)" aria-label="关闭提示">×</button>
       <span class="upload-tip-title">导入入口</span>
-      这里支持上传歌曲，也可以给当前曲目换自定义封面。
+      这里支持上传歌曲、封面，也可以导入落雪音乐歌单(.lxmc)。
     </div>
   </div>
 </div>
@@ -2453,9 +2453,9 @@ html.control-glass-svg-ok #visual-guide-btn:hover{
   </div>
 </div>
 
-<input type="file" id="file-input" accept=".mp3,.flac,.wav,.ogg,.m4a,.jpg,.jpeg,.png,.webp" multiple style="display:none">
+<input type="file" id="file-input" accept=".mp3,.flac,.wav,.ogg,.m4a,.jpg,.jpeg,.png,.webp,.lxmc" multiple style="display:none">
 <input type="file" id="background-image-input" accept=".jpg,.jpeg,.png,.webp,.mp4,.webm,.mov,image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" style="display:none">
-<div id="drop-overlay"><div class="drop-text">拖放音乐或封面</div></div>
+<div id="drop-overlay"><div class="drop-text">拖放音乐、封面或落雪歌单</div></div>
 <div id="free-camera-hint"><b>自由镜头</b> R 固定/退出 · WASD 移动 · 鼠标转向 · Shift 加速 · Space/Ctrl 升降 · Q/E 轻微旋转 · 滚轮景深 · K 回正</div>
 <div id="loading-overlay"><div class="spinner"></div></div>
 
@@ -20361,8 +20361,185 @@ setInterval(function(){
 // ============================================================
 //  文件拖放
 // ============================================================
+
+// ---------- 落雪歌单 .lxmc 导入 ----------
+async function importLxmcFile(file) {
+  showToast('正在解析落雪歌单...');
+  try {
+    // 1. 读取并解压 gzip
+    var buf = await file.arrayBuffer();
+    var ds = new DecompressionStream('gzip');
+    var writer = ds.writable.getWriter();
+    writer.write(buf);
+    writer.close();
+    var reader = ds.readable.getReader();
+    var chunks = [];
+    var totalLen = 0;
+    while (true) {
+      var r = await reader.read();
+      if (r.done) break;
+      chunks.push(r.value);
+      totalLen += r.value.length;
+    }
+    var merged = new Uint8Array(totalLen);
+    var pos = 0;
+    for (var c = 0; c < chunks.length; c++) { merged.set(chunks[c], pos); pos += chunks[c].length; }
+    var rawText = new TextDecoder('utf-8').decode(merged);
+    var data = JSON.parse(rawText);
+    
+    if (!data || data.type !== 'playList_v2' || !Array.isArray(data.data)) {
+      showToast('无效的落雪歌单文件');
+      return;
+    }
+
+    // 2. 收集所有歌曲
+    var allSongs = [];
+    for (var p = 0; p < data.data.length; p++) {
+      var pl = data.data[p];
+      if (pl && Array.isArray(pl.list)) allSongs = allSongs.concat(pl.list);
+    }
+    if (!allSongs.length) { showToast('歌单中没有歌曲'); return; }
+
+    showToast('正在导入 ' + allSongs.length + ' 首歌曲，通过KG搜索匹配...');
+
+    // 3. 按KG匹配歌曲
+    var matchedSongs = [];
+    var notFound = [];
+    var batchSize = 5;
+    for (var s = 0; s < allSongs.length; s++) {
+      var song = allSongs[s];
+      if (!song || !song.name) continue;
+      
+      // KG源的歌直接用KG ID
+      if (song.source === 'kg' && song.meta) {
+        matchedSongs.push({
+          id: String(song.meta.songId || ''),
+          songmid: String(song.meta.songId || ''),
+          name: song.name,
+          artist: song.singer || '',
+          album: song.meta.albumName || '',
+          cover: song.meta.picUrl || '',
+          source: 'kg',
+          hash: song.meta.hash || (song.meta._qualitys && song.meta._qualitys['128k'] && song.meta._qualitys['128k'].hash) || '',
+        });
+        continue;
+      }
+      
+      // 非KG源：搜索KG找匹配
+      try {
+        var keywords = song.name + ' ' + (song.singer || '');
+        var result = await apiJson('/api/lx-search?keywords=' + encodeURIComponent(keywords) + '&source=kg&limit=5', { timeoutMs: 15000 });
+        if (result && result.ok && Array.isArray(result.songs) && result.songs.length) {
+          var best = findBestKGMatch(result.songs, song.name, song.singer || '');
+          if (best) {
+            matchedSongs.push({
+              id: String(best.id || best.songmid || ''),
+              songmid: String(best.songmid || best.id || ''),
+              name: best.name || song.name,
+              artist: best.artist || best.singer || song.singer || '',
+              album: best.album || best.albumName || '',
+              cover: best.cover || best.picUrl || '',
+              source: 'kg',
+              hash: best.hash || '',
+            });
+            continue;
+          }
+        }
+      } catch (e) { /* search failed, fall through to notFound */ }
+      notFound.push(song.name + ' - ' + (song.singer || ''));
+      
+      // 进度提示
+      if ((s + 1) % 10 === 0 || s === allSongs.length - 1) {
+        showToast('导入中: ' + (s + 1) + '/' + allSongs.length + ' (' + matchedSongs.length + '首匹配)');
+      }
+    }
+
+    // 4. 创建歌单并添加歌曲
+    if (!matchedSongs.length) {
+      showToast('未能匹配任何KG歌曲，请确认歌单包含有效歌曲');
+      return;
+    }
+    
+    var listName = (data.data[0] && data.data[0].name && data.data[0].name !== 'list__name_default') ? data.data[0].name : '落雪导入歌单';
+    var createResult = await apiJson('/api/local/playlist/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: listName })
+    });
+    if (!(createResult && createResult.ok && createResult.playlist)) {
+      showToast('创建歌单失败');
+      return;
+    }
+    var pid = createResult.playlist.id;
+    
+    var added = 0;
+    var skipped = 0;
+    for (var a = 0; a < matchedSongs.length; a++) {
+      try {
+        var ms = matchedSongs[a];
+        var addResult = await apiJson('/api/local/playlist/add-song', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pid: pid,
+            id: ms.id,
+            songmid: ms.songmid,
+            name: ms.name,
+            artist: ms.artist,
+            album: ms.album || '',
+            cover: ms.cover || '',
+            source: 'kg',
+            hash: ms.hash || ''
+          })
+        });
+        if (addResult && addResult.success) added++;
+        else skipped++;
+      } catch (e) { skipped++; }
+    }
+    
+    await refreshLocalPlaylists();
+    
+    var msg = '落雪歌单导入完成！' + listName + ' - ' + added + '首已导入';
+    if (skipped) msg += ', ' + skipped + '首已存在';
+    if (notFound.length) msg += ', ' + notFound.length + '首未找到KG版本';
+    showToast(msg);
+    
+  } catch (e) {
+    console.error('[LXMC Import]', e);
+    showToast('落雪歌单导入失败: ' + (e.message || '未知错误'));
+  }
+}
+
+// 从KG搜索结果中找最佳匹配
+function findBestKGMatch(songs, targetName, targetArtist) {
+  var best = null;
+  var bestScore = 0;
+  var tName = (targetName || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
+  var tArtist = (targetArtist || '').toLowerCase().trim();
+  for (var i = 0; i < songs.length; i++) {
+    var s = songs[i];
+    if (!s || !s.name) continue;
+    var sName = (s.name || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
+    var sArtist = (s.artist || s.singer || '').toLowerCase().trim();
+    var score = 0;
+    if (sName === tName) score += 100;
+    else if (sName.includes(tName) || tName.includes(sName)) score += 60;
+    if (tArtist && sArtist) {
+      if (sArtist === tArtist) score += 50;
+      else if (sArtist.includes(tArtist) || tArtist.includes(sArtist)) score += 25;
+    }
+    if (score > bestScore) { bestScore = score; best = s; }
+  }
+  return best;
+}
+
 document.getElementById('file-input').addEventListener('change', function(e){ handleFiles(e.target.files); e.target.value = ''; });
 function handleFiles(files) {
+  var lxmcFile = null;
+  for (var j = 0; j < files.length; j++) {
+    if (/\.lxmc$/i.test(files[j].name)) { lxmcFile = files[j]; break; }
+  }
+  if (lxmcFile) { importLxmcFile(lxmcFile); return; }
   var audioFile = null, imgFile = null;
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
