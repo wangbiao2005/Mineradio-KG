@@ -2,9 +2,9 @@
 
 ![Mineradio 暗场启动页](./docs/assets/readme/cinema-beat-smoke.png)
 
-> 本项目基于 [XxHuberrr/Mineradio](https://github.com/XxHuberrr/Mineradio) 开源代码改编，将音源统一切换为酷狗（KG），免登录即可使用搜索、播放、歌词等全功能。
+> 本项目基于 [XxHuberrr/Mineradio](https://github.com/XxHuberrr/Mineradio) 开源代码改编，将音源统一切换为酷狗（KG），基于落雪音乐（LX Music）框架，**免费听歌**，免登录全功能。
 
-Mineradio 是一款 Windows 桌面沉浸式音乐播放器，把天气电台、搜索播放、歌词舞台、粒子视觉和 3D 歌单架组合成一个更接近现场感的私人音乐空间。
+Mineradio 是一款 **免费听歌** 的 Windows 桌面沉浸式音乐播放器，把天气电台、搜索播放、歌词舞台、粒子视觉和 3D 歌单架组合成一个更接近现场感的私人音乐空间。
 
 ## 与原项目的区别
 
