@@ -1,5 +1,14 @@
 # 更新日志
 
+## v1.1.5
+- 改城市功能升级为全球城市搜索弹窗：支持全球任意城市，搜索+确认替代 window.prompt
+- 后端新增 /api/weather/geocode 接口：Open-Meteo 全球地理编码，CJK 回退策略，非中国结果优先排序
+- 后端 IP 定位精度修复：fetchIpWeatherLocation 接收客户端真实 IP，内网地址过滤
+- 前端城市搜索弹窗：复用 modal-mask/modal 风格，320→200ms 防抖，htmEsc 高性能渲染
+- 修复天气行点击被首页空白拦截器误判的问题：isPointNearHomeContent 加 .home-hero-inner
+- GPS 定位增加 isSecureContext 诊断日志，方便排查定位路径
+- 改城市仅"改"字可点击，避免天气信息行误触
+
 ## v1.1.4
 - 首页英雄区全面重做：问候标签+衬线日期+24h时间轴+天气文字行+文学短句+镜头光圈SVG
 - 文学短句库：12种天气心情分组，每次打开首页随机一句，缓存防跳变，总100+条

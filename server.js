@@ -1957,6 +1957,49 @@ async function resolveOpenMeteoLocation(query) {
   };
 }
 
+async function searchOpenMeteoLocations(query, count) {
+  const raw = String(query || '').trim();
+  if (!raw || raw.length < 1) return [];
+  const cnt = Math.min(Math.max(Number(count) || 8, 1), 20);
+  function buildUrl(lang) {
+    const u = new URL(OPEN_METEO_GEOCODE_URL);
+    u.searchParams.set('name', raw);
+    u.searchParams.set('count', String(cnt));
+    u.searchParams.set('format', 'json');
+    if (lang) u.searchParams.set('language', lang);
+    return u.toString();
+  }
+  function mapResults(results) {
+    return (Array.isArray(results) ? results : []).map(function(r) {
+      return {
+        name: r.name || '',
+        admin1: r.admin1 || '',
+        country: r.country || '',
+        country_code: r.country_code || '',
+        latitude: r.latitude,
+        longitude: r.longitude,
+        timezone: r.timezone || 'auto',
+      };
+    });
+  }
+  // 优先全球搜索（无 language 参数，国际城市排名更准）
+  var body = await requestJson(buildUrl(''), { headers: { 'User-Agent': UA } });
+  var results = body && Array.isArray(body.results) ? body.results : [];
+  // CJK 回退：中文/日文/韩文输入在无 language 时可能返回空，补一次 zh 搜索
+  if (!results.length && /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(raw)) {
+    var bodyZh = await requestJson(buildUrl('zh'), { headers: { 'User-Agent': UA } });
+    results = bodyZh && Array.isArray(bodyZh.results) ? bodyZh.results : [];
+  }
+  var mapped = mapResults(results);
+  // 非中国城市优先
+  mapped.sort(function(a, b) {
+    var aCn = a.country_code === 'CN' ? 1 : 0;
+    var bCn = b.country_code === 'CN' ? 1 : 0;
+    return aCn - bCn;
+  });
+  return mapped;
+}
+
 async function fetchOpenMeteoWeather(params) {
   params = params || {};
   let location;
@@ -2010,8 +2053,12 @@ async function fetchOpenMeteoWeather(params) {
   return weather;
 }
 
-async function fetchIpWeatherLocation() {
-  const u = new URL(WEATHER_IP_LOCATION_URL);
+async function fetchIpWeatherLocation(clientIp) {
+  var ipUrl = WEATHER_IP_LOCATION_URL;
+  if (clientIp && typeof clientIp === 'string' && clientIp.trim()) {
+    ipUrl = WEATHER_IP_LOCATION_URL + encodeURIComponent(clientIp.trim());
+  }
+  const u = new URL(ipUrl);
   u.searchParams.set('fields', 'status,message,country,regionName,city,lat,lon,timezone,query');
   u.searchParams.set('lang', 'zh-CN');
   const body = await requestJson(u.toString(), { headers: { 'User-Agent': UA } });
@@ -3319,10 +3366,50 @@ const server = http.createServer(async (req, res) => {
 
   if (pn === '/api/weather/ip-location') {
     try {
-      sendJSON(res, { ok: true, location: await fetchIpWeatherLocation() });
+      var clientIp = '';
+      var forwarded = req.headers['x-forwarded-for'];
+      if (forwarded) {
+        clientIp = String(forwarded).split(',')[0].trim();
+      }
+      if (!clientIp) {
+        clientIp = (req.socket && req.socket.remoteAddress) || '';
+      }
+      if (clientIp && clientIp.indexOf('::ffff:') === 0) {
+        clientIp = clientIp.slice(7);
+      }
+      var isPrivate = false;
+      if (clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === 'localhost' || !clientIp) {
+        isPrivate = true;
+      } else {
+        var ipParts = clientIp.split('.');
+        if (ipParts.length === 4) {
+          var first = parseInt(ipParts[0], 10);
+          var second = parseInt(ipParts[1], 10);
+          if (first === 10) isPrivate = true;
+          if (first === 172 && second >= 16 && second <= 31) isPrivate = true;
+          if (first === 192 && second === 168) isPrivate = true;
+        }
+      }
+      sendJSON(res, { ok: true, location: await fetchIpWeatherLocation(isPrivate ? undefined : clientIp) });
     } catch (err) {
       console.error('[WeatherIpLocation]', err);
       sendJSON(res, { ok: false, error: err.message, location: null }, 500);
+    }
+    return;
+  }
+
+  if (pn === '/api/weather/geocode') {
+    try {
+      var q = url.searchParams.get('q') || '';
+      var count = parseInt(url.searchParams.get('count') || '8');
+      if (!q || q.trim().length < 1) {
+        sendJSON(res, { ok: true, results: [] });
+        return;
+      }
+      sendJSON(res, { ok: true, results: await searchOpenMeteoLocations(q, count) });
+    } catch (err) {
+      console.error('[WeatherGeocode]', err);
+      sendJSON(res, { ok: false, error: err.message, results: [] }, 500);
     }
     return;
   }

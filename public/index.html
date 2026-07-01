@@ -822,6 +822,24 @@ body.login-guide-active #login-guide-canvas{opacity:1}
 .login-intro-kicker{font-size:10px;font-weight:780;letter-spacing:.18em;color:rgba(244,210,138,.72);text-transform:uppercase;margin-bottom:6px}
 .login-intro-title{font-size:18px;font-weight:760;line-height:1.18;color:rgba(255,255,255,.95);letter-spacing:0;margin-bottom:6px}
 .login-intro-body{font-size:12px;line-height:1.58;color:rgba(255,255,255,.56)}
+/* 城市搜索弹窗 */
+.city-search-modal{max-width:460px;width:92vw;text-align:left;padding:28px 30px 22px}
+.city-search-modal h2{margin-bottom:16px;text-align:left}
+.city-search-input{display:block;width:100%;border:none;background:rgba(255,255,255,.045);color:#fff;font-size:13.5px;font-family:inherit;outline:none;letter-spacing:.3px;padding:10px 14px;border-radius:10px;margin-bottom:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04);transition:background .22s,box-shadow .22s}
+.city-search-input:focus{background:rgba(255,255,255,.065);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(244,210,138,.14)}
+.city-search-input::placeholder{color:rgba(255,255,255,.22)}
+.city-search-results{max-height:280px;overflow-y:auto;margin:0 -4px;padding:0 4px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.1) transparent}
+.city-search-results::-webkit-scrollbar{width:3px}
+.city-search-results::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px}
+.city-search-hint{font-size:12px;color:rgba(255,255,255,.28);text-align:center;padding:20px 0 12px}
+.city-search-status{font-size:12px;color:rgba(255,255,255,.28);text-align:center;padding:20px 0 12px}
+.city-search-item{padding:9px 12px;border-radius:8px;cursor:pointer;transition:background .18s,color .18s;display:flex;flex-direction:column;gap:2px}
+.city-search-item:hover{background:rgba(244,210,138,.10)}
+.city-search-item-name{font-size:13.5px;color:rgba(255,255,255,.86);font-weight:500;letter-spacing:.2px}
+.city-search-item:hover .city-search-item-name{color:rgba(255,255,255,.96)}
+.city-search-item-meta{font-size:11px;color:rgba(255,255,255,.38);letter-spacing:.1px}
+.city-search-item:hover .city-search-item-meta{color:rgba(244,210,138,.62)}
+.city-search-item .city-search-item-name,.city-search-item .city-search-item-meta{pointer-events:none}
 .login-platform-tabs,.user-platform-tabs{display:flex;gap:8px;margin:0 auto 18px;padding:4px;border-radius:999px;border:1px solid rgba(255,255,255,.075);background:rgba(255,255,255,.035)}
 .login-platform-tabs button,.user-platform-tabs button{flex:1;min-width:0;height:32px;border:0;border-radius:999px;background:transparent;color:rgba(255,255,255,.48);font-family:inherit;font-size:11.5px;font-weight:700;letter-spacing:.45px;cursor:pointer;transition:background .22s,color .22s,box-shadow .22s,transform .22s;white-space:nowrap}
 .login-platform-tabs button:hover,.user-platform-tabs button:hover{color:rgba(255,255,255,.82)}
@@ -2641,6 +2659,19 @@ html.control-glass-svg-ok #visual-guide-btn:hover{
         <button class="update-secondary-btn" type="button" onclick="closeUpdatePanel()">取消</button>
       </div>
       <div id="update-footnote" class="update-footnote">预览版只演示更新手感，不会真的下载安装。</div>
+    </div>
+  </div>
+</div>
+
+<div id="city-search-modal" class="modal-mask" onclick="if(event.target===this)closeCitySearchModal()">
+  <div class="modal city-search-modal">
+    <h2>切换城市</h2>
+    <input id="city-search-input" class="city-search-input" type="text" placeholder="搜索全球城市，如 东京 / Paris / New York" autocomplete="off" spellcheck="false">
+    <div id="city-search-results" class="city-search-results">
+      <div class="city-search-hint">输入城市名开始搜索</div>
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="modal-btn" type="button" onclick="closeCitySearchModal()">关闭</button>
     </div>
   </div>
 </div>
@@ -15767,14 +15798,13 @@ function renderHomeDiscover() {
     var editSpan = document.createElement('span');
     editSpan.className = 'home-weather-edit';
     editSpan.textContent = '改';
-    weatherLine.appendChild(editSpan);
-    weatherLine.style.cursor = 'pointer';
-    weatherLine.title = '点击切换城市';
-    weatherLine.onclick = null;
-    weatherLine.addEventListener('click', function weatherLineClick(e) {
+    editSpan.style.cursor = 'pointer';
+    editSpan.title = '点击切换城市';
+    editSpan.addEventListener('click', function(e) {
       e.stopPropagation();
       changeWeatherCity();
     });
+    weatherLine.appendChild(editSpan);
   }
   if (literaryEl) {
     if (!homeCachedQuote) {
@@ -16090,6 +16120,9 @@ function locateWeatherRadio() {
     });
   }
   // 优先浏览器 GPS 定位（桌面 WiFi / 基站精度远高于 IP 库），失败再走 IP 兜底
+  if (window.isSecureContext === false) {
+    console.warn('[locateWeatherRadio] GPS定位不可用：当前非安全上下文（window.isSecureContext === false），navigator.geolocation 可能被浏览器禁用，将直接走 IP 兜底。');
+  }
   if (navigator && navigator.geolocation) {
     var geoTimer = setTimeout(function() {
       if (!locationSettled && !ipFallbackStarted) useIpFallback();
@@ -16115,15 +16148,105 @@ function locateWeatherRadio() {
     useIpFallback();
   }
 }
-function changeWeatherCity() {
-  var city = window.prompt('输入城市名', homeWeatherRadioState.city || '上海');
-  city = String(city || '').trim();
-  if (!city) return;
-  homeWeatherRadioState.city = city;
-  localStorage.setItem(HOME_WEATHER_CITY_KEY, city);
+var citySearchTimer = null;
+var citySearchController = null;
+var citySearchInputSetup = false;
+function openCitySearchModal() {
+  var mask = document.getElementById('city-search-modal');
+  if (!mask) return;
+  mask.classList.add('show');
+  var input = document.getElementById('city-search-input');
+  var results = document.getElementById('city-search-results');
+  if (input) {
+    input.value = '';
+    setTimeout(function() { input.focus(); }, 120);
+    if (!citySearchInputSetup) {
+      citySearchInputSetup = true;
+      input.addEventListener('input', function() {
+        if (citySearchTimer) clearTimeout(citySearchTimer);
+        var q = String(input.value || '').trim();
+        if (!q || q.length < 1) {
+          if (results) results.innerHTML = '<div class="city-search-hint">输入城市名开始搜索</div>';
+          return;
+        }
+        citySearchTimer = setTimeout(function() {
+          citySearchTimer = null;
+          performCitySearch(q);
+        }, 200);
+      });
+    }
+  }
+  if (results) {
+    results.innerHTML = '<div class="city-search-hint">输入城市名开始搜索</div>';
+  }
+}
+function closeCitySearchModal() {
+  var mask = document.getElementById('city-search-modal');
+  if (!mask) return;
+  mask.classList.remove('show');
+  if (citySearchTimer) { clearTimeout(citySearchTimer); citySearchTimer = null; }
+  if (citySearchController) { citySearchController.abort(); citySearchController = null; }
+}
+function performCitySearch(query) {
+  if (citySearchController) { citySearchController.abort(); }
+  var controller = new AbortController();
+  citySearchController = controller;
+  var results = document.getElementById('city-search-results');
+  if (results) {
+    results.innerHTML = '<div class="city-search-status">搜索中...</div>';
+  }
+  fetch('/api/weather/geocode?q=' + encodeURIComponent(query) + '&count=8&t=' + Date.now(), { signal: controller.signal })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (controller.signal.aborted) return;
+      citySearchController = null;
+      renderCitySearchResults(data && data.results || []);
+    })
+    .catch(function(err) {
+      if (controller.signal.aborted) return;
+      citySearchController = null;
+      if (results) {
+        results.innerHTML = '<div class="city-search-status">搜索失败，请重试</div>';
+      }
+    });
+}
+function htmEsc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function renderCitySearchResults(list) {
+  var results = document.getElementById('city-search-results');
+  if (!results) return;
+  if (!list || !list.length) {
+    results.innerHTML = '<div class="city-search-status">未找到相关城市，换个名字试试</div>';
+    return;
+  }
+  var parts = [];
+  for (var i = 0; i < list.length; i++) {
+    var r = list[i];
+    var metaParts = [];
+    if (r.admin1) metaParts.push(r.admin1);
+    if (r.country) metaParts.push(r.country);
+    var nameEsc = htmEsc(r.name || '');
+    var metaEsc = htmEsc(metaParts.join(' · '));
+    var dn = String(r.name || '').replace(/"/g, '');
+    parts.push('<div class="city-search-item" data-lat="' + r.latitude + '" data-lon="' + r.longitude + '" data-name="' + dn + '" onclick="selectCitySearchItem(this)"><span class="city-search-item-name">' + nameEsc + '</span><span class="city-search-item-meta">' + metaEsc + '</span></div>');
+  }
+  results.innerHTML = parts.join('');
+}
+function selectCitySearchItem(el) {
+  var lat = parseFloat(el.getAttribute('data-lat'));
+  var lon = parseFloat(el.getAttribute('data-lon'));
+  var name = el.getAttribute('data-name') || '';
+  if (!isFinite(lat) || !isFinite(lon)) return;
+  closeCitySearchModal();
+  homeWeatherRadioState.city = name;
+  localStorage.setItem(HOME_WEATHER_CITY_KEY, name);
   localStorage.setItem(HOME_WEATHER_CONFIGURED_KEY, '1');
   homeWeatherRadioState.loaded = false;
-  loadHomeWeatherRadio(true, { city: city });
+  loadHomeWeatherRadio(true, { lat: lat, lon: lon, city: name, timezone: '' });
+}
+function changeWeatherCity() {
+  openCitySearchModal();
 }
 function shouldShowEmptyHomeCore(ignoreSplash) {
   if (!ignoreSplash && document.body.classList.contains('splash-active')) return false;
@@ -16531,7 +16654,8 @@ function isPointNearHomeContent(x, y) {
   var selectors = [
     '.home-card',
     '.home-tile',
-    '.home-chip'
+    '.home-chip',
+    '.home-hero-inner'
   ];
   for (var i = 0; i < selectors.length; i++) {
     var nodes = document.querySelectorAll(selectors[i]);
@@ -16591,6 +16715,15 @@ document.addEventListener('click', function(e) {
   e.stopPropagation();
   dismissHomePage({ reason: 'blank-click' });
 }, true);
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' || e.code === 'Escape') {
+    var mask = document.getElementById('city-search-modal');
+    if (mask && mask.classList.contains('show')) {
+      e.preventDefault();
+      closeCitySearchModal();
+    }
+  }
+});
 function songFromListenRecord(record) {
   if (!record) return null;
   var provider = record.sourceKey || 'kg';
