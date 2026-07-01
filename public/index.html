@@ -255,33 +255,47 @@ body.home-wallpaper-preview #canvas-container{filter:none}
 .home-hero{position:relative;grid-row:1 / span 2;min-height:438px;padding:28px;border-radius:28px;border:1px solid color-mix(in srgb,var(--home-accent) 22%,rgba(255,255,255,.085));background:linear-gradient(145deg,rgba(33,29,34,.64),rgba(9,10,14,.76) 48%,rgba(17,20,25,.70));box-shadow:0 28px 90px rgba(0,0,0,.34),0 0 0 1px color-mix(in srgb,var(--home-accent) 7%,transparent),inset 0 1px 0 rgba(255,255,255,.065);backdrop-filter:blur(30px) saturate(1.16);-webkit-backdrop-filter:blur(30px) saturate(1.16);overflow:hidden}
 .home-hero::before{content:'';position:absolute;inset:0;background:linear-gradient(118deg,rgba(255,255,255,.060),transparent 24%,rgba(255,83,103,.070) 54%,rgba(122,215,194,.055) 82%,transparent 100%),linear-gradient(90deg,rgba(255,255,255,.032) 0 1px,transparent 1px 48px),linear-gradient(0deg,rgba(255,255,255,.024) 0 1px,transparent 1px 44px);opacity:.72;pointer-events:none}
 .home-hero::after{content:'';position:absolute;left:28px;right:28px;bottom:22px;height:1px;background:linear-gradient(90deg,color-mix(in srgb,var(--home-accent) 0%,transparent),color-mix(in srgb,var(--home-accent) 52%,transparent),rgba(36,66,255,.24),rgba(248,244,238,.18),color-mix(in srgb,var(--home-accent) 0%,transparent));opacity:.82;pointer-events:none}
-.home-hero-inner{position:relative;z-index:2;height:100%;display:grid;grid-template-columns:minmax(0,1.16fr) minmax(150px,.64fr);grid-template-rows:auto auto auto auto minmax(150px,1fr);column-gap:18px}
+.home-hero-inner{position:relative;z-index:2;height:100%;display:grid;grid-template-columns:minmax(0,1.16fr) minmax(150px,.64fr);grid-template-rows:1fr;column-gap:18px}
 .home-hero-inner.home-construction-inner{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:18px;padding:4px 2px;min-height:100%}
-.home-kicker{grid-column:1;font-size:10px;font-weight:780;letter-spacing:.18em;color:color-mix(in srgb,var(--home-accent) 62%,rgba(255,255,255,.36));text-transform:uppercase;margin-bottom:14px}
-.home-title{grid-column:1;font-size:clamp(34px,4.6vw,58px);line-height:.98;font-weight:760;letter-spacing:0;color:rgba(255,255,255,.98);max-width:380px;text-shadow:0 10px 36px rgba(0,0,0,.26)}
-.home-title.home-construction-title{max-width:620px;font-size:clamp(32px,4.5vw,64px);line-height:1.08}
-.home-sub{grid-column:1;margin-top:14px;font-size:13px;line-height:1.62;color:rgba(255,255,255,.62);max-width:348px}
-.home-weather-meta{grid-column:1;display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
-.home-weather-pill{height:28px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.050);display:inline-flex;align-items:center;color:rgba(255,255,255,.70);font-size:11px;font-weight:680}
+.home-kicker{grid-column:1;font-size:9.5px;font-weight:600;letter-spacing:.24em;color:rgba(255,255,255,.42);text-transform:uppercase}
+.home-kicker--greeting{margin-bottom:6px}
+.home-shelf-date{grid-column:1;display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
+.home-shelf-date-md{font-family:"Songti SC","STSong","Noto Serif CJK SC","SimSun",serif;font-size:clamp(42px,5.6vw,68px);line-height:.96;color:rgba(255,255,255,.92);font-weight:400;letter-spacing:-.01em;white-space:nowrap}
+.home-shelf-date-sep{font-size:clamp(20px,2.4vw,28px);color:rgba(255,255,255,.15);line-height:1;user-select:none}
+.home-shelf-date-wd{font-size:clamp(13px,1.5vw,17px);color:rgba(255,255,255,.42);font-weight:420;line-height:1;align-self:flex-end;padding-bottom:clamp(4px,.6vw,10px);white-space:nowrap}
+.home-time-axis{grid-column:1;margin-top:18px;max-width:400px}
+.home-time-axis-track{position:relative;height:1px;background:rgba(255,255,255,.08)}
+.home-time-axis-tick{position:absolute;top:-5px;width:1px;height:11px;background:rgba(255,255,255,.12);left:0;transform:translateX(-50%)}
+.home-time-axis-tick--q1{left:25%}
+.home-time-axis-tick--half{left:50%}
+.home-time-axis-tick--q3{left:75%}
+.home-time-axis-tick--end{left:100%}
+.home-time-axis-dot{position:absolute;top:-4px;width:9px;height:9px;border-radius:50%;background:var(--home-accent);transform:translateX(-50%);transition:left .5s ease}
+.home-time-axis-labels{display:flex;justify-content:space-between;margin-top:6px;font-size:9px;color:rgba(255,255,255,.20);font-weight:450;letter-spacing:.04em}
+.home-weather-line{grid-column:1;margin-top:13px;font-size:11.5px;color:rgba(255,255,255,.46);line-height:1.5;font-weight:420;letter-spacing:.02em;max-width:500px}
+.home-weather-edit{display:inline;margin-left:6px;cursor:pointer;opacity:.32;font-size:10px;transition:opacity .22s;letter-spacing:0;font-weight:400;font-style:normal;user-select:none}
+.home-weather-edit:hover{opacity:.68}
+.home-literary{grid-column:1;margin-top:8px;font-size:10.5px;font-style:italic;color:rgba(255,255,255,.28);line-height:1.42;max-width:380px;letter-spacing:.03em}
 .home-quick-row{grid-column:1;position:relative;z-index:3;display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
 .home-chip{height:32px;padding:0 13px;border-radius:999px;border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.060);color:rgba(255,255,255,.76);font-family:inherit;font-size:11.5px;font-weight:680;cursor:pointer;transition:background .18s,border-color .18s,color .18s,transform .18s,box-shadow .18s}
 .home-chip:hover{background:color-mix(in srgb,var(--home-accent) 10%,transparent);border-color:color-mix(in srgb,var(--home-accent) 38%,rgba(255,255,255,.10));color:#fff;box-shadow:0 10px 26px color-mix(in srgb,var(--home-accent) 8%,transparent);transform:translateY(-1px)}
 .home-console-chip{height:36px;border-color:color-mix(in srgb,var(--home-accent) 34%,rgba(255,255,255,.12));background:color-mix(in srgb,var(--home-accent) 12%,rgba(255,255,255,.055));color:#fff}
-.home-visual{grid-column:2;grid-row:2 / span 2;position:relative;align-self:center;justify-self:end;width:100%;max-width:300px;height:74px;margin-top:0;pointer-events:none;filter:drop-shadow(0 18px 34px rgba(0,0,0,.28))}
-.home-visual.generated .home-sleeve,.home-visual.generated .home-disc{display:none}
-.home-radio-img{display:none}
-.home-sleeve{position:absolute;left:0;bottom:8px;width:67%;height:56%;border-radius:22px;background:linear-gradient(135deg,rgba(0,245,212,.70),rgba(36,66,255,.44) 48%,rgba(248,244,238,.30));box-shadow:0 20px 52px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.20);transform:rotate(-8deg);overflow:hidden}
-.home-sleeve::before{content:'';position:absolute;inset:14px;border-radius:16px;background:linear-gradient(135deg,rgba(255,255,255,.18),rgba(0,0,0,.18)),repeating-linear-gradient(90deg,rgba(255,255,255,.18) 0 2px,transparent 2px 18px);opacity:.72}
-.home-sleeve::after{content:'';position:absolute;left:18px;right:18px;bottom:18px;height:12px;border-radius:999px;background:rgba(10,10,14,.44);box-shadow:0 -24px 0 rgba(10,10,14,.16)}
-.home-disc{position:absolute;right:4px;top:0;width:min(210px,82%);aspect-ratio:1;border-radius:50%;background:repeating-radial-gradient(circle,rgba(255,255,255,.10) 0 1px,transparent 1px 10px),conic-gradient(from 210deg,#00f5d4,#2442ff,#f8f4ee,#7ad7c2,#00f5d4);box-shadow:0 24px 62px rgba(0,0,0,.42),inset 0 0 0 1px rgba(255,255,255,.18),inset 0 0 0 16px rgba(8,8,12,.56);animation:home-disc-turn 18s linear infinite}
-.home-disc::before{content:'';position:absolute;inset:34%;border-radius:50%;background:linear-gradient(145deg,rgba(12,12,16,.96),rgba(34,32,38,.90));box-shadow:inset 0 1px 0 rgba(255,255,255,.20),0 0 0 12px rgba(255,255,255,.055)}
-.home-disc::after{content:'';position:absolute;inset:10%;border-radius:50%;border:1px solid rgba(255,255,255,.14);border-left-color:rgba(255,255,255,.03);border-bottom-color:rgba(255,255,255,.04)}
-.home-eq{display:none}
-.home-eq span{display:block;flex:1;min-width:5px;height:var(--h,28px);border-radius:999px;background:linear-gradient(180deg,rgba(255,255,255,.94),var(--bar,#ff5367));box-shadow:0 0 18px color-mix(in srgb,var(--bar,#ff5367) 52%,transparent);animation:home-eq-rise 1.8s ease-in-out infinite;animation-delay:var(--d,0s)}
-.home-radio-badge{display:none}
-.home-wave-track{position:absolute;left:0;right:0;top:50%;height:44px;display:flex;align-items:center;gap:4px;opacity:.94;mix-blend-mode:screen;transform:translateY(-50%)}
-.home-wave-track span{flex:1;min-width:3px;border-radius:999px;background:linear-gradient(180deg,#fff,var(--home-accent));box-shadow:0 0 12px color-mix(in srgb,var(--home-accent) 55%,transparent);height:5px;transform-origin:bottom;transition:height .08s linear,opacity .08s linear}
-@keyframes home-disc-turn{to{transform:rotate(360deg)}}
+.home-console-chip--thin{height:28px;border-color:rgba(255,255,255,.09);background:rgba(255,255,255,.025);color:rgba(255,255,255,.48);font-size:10.5px;font-weight:500;letter-spacing:.06em;padding:0 14px}
+.home-console-chip--thin:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.16);color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.20)}
+.home-left-group{grid-column:1;grid-row:1;display:flex;flex-direction:column;min-height:0}
+.home-top-block{flex:0 0 auto}
+.home-weather-radio-prompt{display:none;align-items:center;gap:8px;margin-top:auto;margin-bottom:12px;padding:0;font-size:12px;color:rgba(255,255,255,.38);background:none;border:0;font-family:inherit;cursor:pointer;transition:color .24s;user-select:none;line-height:1.44;max-width:420px;text-align:left;width:100%}
+.home-weather-radio-prompt.show{display:flex}
+.home-weather-radio-prompt:hover{color:rgba(255,255,255,.68)}
+.home-weather-radio-prompt-text{flex:1;min-width:0}
+.home-weather-radio-prompt-arrow{flex-shrink:0;transition:transform .26s,opacity .26s;opacity:.48}
+.home-weather-radio-prompt:hover .home-weather-radio-prompt-arrow{transform:translateX(3px);opacity:.88}
+.home-visual{grid-column:2;grid-row:1;position:relative;align-self:center;justify-self:center;width:100%;max-width:240px;aspect-ratio:1;margin-top:0;pointer-events:none;color:rgba(255,255,255,.14)}
+.home-visual--aperture{width:min(220px,28vw);height:auto;max-width:240px;max-height:240px;filter:none}
+.home-aperture{width:100%;height:100%;display:block}
+.home-aperture-accent{stroke:var(--home-accent)!important;fill:var(--home-accent)!important}
+.home-sleeve,.home-disc{display:none}
+@keyframes home-disc-turn{}
 @keyframes home-eq-rise{0%,100%{transform:scaleY(.68);opacity:.66}45%{transform:scaleY(1);opacity:1}}
 .home-mosaic{grid-column:1 / -1;grid-row:5;align-self:end;display:grid;grid-template-columns:1.18fr .82fr;grid-template-rows:1fr 1fr;gap:10px;height:min(216px,26vh);min-height:150px;margin-top:18px}
 .home-mosaic-cell{position:relative;border-radius:20px;background:linear-gradient(135deg,rgba(255,255,255,.12),rgba(255,255,255,.035));background-size:cover;background-position:center;overflow:hidden;border:1px solid color-mix(in srgb,var(--home-accent) 12%,rgba(255,255,255,.075));box-shadow:0 18px 44px rgba(0,0,0,.26)}
@@ -333,14 +347,14 @@ body.empty-home-active .home-visual{animation:home-visual-drift 8.8s ease-in-out
 .home-skeleton{position:relative;overflow:hidden}
 .home-skeleton::before{content:'';position:absolute;inset:0;background:linear-gradient(110deg,transparent,rgba(255,255,255,.08),transparent);transform:translateX(-100%);animation:home-shimmer 1.5s ease-in-out infinite}
 @keyframes home-shimmer{100%{transform:translateX(100%)}}
-@media (max-width:1120px){#empty-home{width:calc(100vw - 48px)}.empty-home-shell{grid-template-columns:minmax(300px,.88fr) minmax(440px,1.12fr);gap:12px}.home-hero{padding:24px}.home-hero-inner{grid-template-columns:minmax(0,1.16fr) minmax(128px,.52fr);column-gap:14px}.home-title{font-size:clamp(30px,4vw,48px);max-width:340px}.home-sub{font-size:12.5px;line-height:1.5;max-width:314px}.home-visual{height:198px;max-width:236px}.home-mosaic{height:142px;min-height:126px;margin-top:14px}.home-grid{gap:10px}.home-card{min-height:126px;padding:14px;border-radius:20px}.home-card-label{margin-bottom:6px}.home-card-title{font-size:16.5px;max-width:66%}.home-card-sub{margin-top:6px;font-size:10.8px;line-height:1.34;max-width:64%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.home-card-art{right:11px;bottom:11px;width:80px;height:80px;border-radius:18px}.home-card-art:not(.has-cover)::before{inset:14px;box-shadow:inset 0 0 0 11px rgba(5,5,8,.44),0 10px 24px rgba(0,0,0,.24)}.home-card::after{right:88px;bottom:14px;width:30px;height:56px}.home-rail{gap:8px}.home-tile{min-height:128px}.home-tile-cover{height:66px}}
-@media (max-height:760px){#empty-home{top:132px;bottom:44px}.empty-home-shell{min-height:0}.home-hero{min-height:0;padding:22px}.home-hero-inner{grid-template-columns:minmax(0,1.22fr) minmax(136px,.54fr);column-gap:14px}.home-title{font-size:clamp(31px,3.75vw,48px);max-width:360px}.home-sub{font-size:12.5px;line-height:1.55;max-width:330px}.home-quick-row{margin-top:16px}.home-visual{height:206px;max-width:246px}.home-mosaic{height:132px;min-height:120px;margin-top:14px}.home-card{min-height:134px;padding:14px}.home-card-title{font-size:17px}.home-card-art{width:92px;height:92px;border-radius:21px}.home-tile{min-height:132px}.home-tile-cover{height:72px}}
-@media (max-height:700px){#empty-home{top:126px;bottom:34px}.home-hero{padding:20px}.home-title{font-size:clamp(28px,3.55vw,42px)}.home-sub{font-size:12px;line-height:1.42}.home-weather-meta{margin-top:12px}.home-quick-row{margin-top:12px}.home-visual{height:174px;max-width:216px}.home-mosaic{height:112px;min-height:104px}.home-card{min-height:112px;padding:12px}.home-card-title{font-size:15.5px}.home-card-sub{font-size:10.5px;line-height:1.28;-webkit-line-clamp:2}.home-card-art{width:70px;height:70px;border-radius:16px}.home-card::after{right:78px;height:48px}.home-tile{min-height:112px;padding:9px}.home-tile-cover{height:54px;margin-bottom:8px}.home-section-head{min-height:30px}}
+@media (max-width:1120px){#empty-home{width:calc(100vw - 48px)}.empty-home-shell{grid-template-columns:minmax(300px,.88fr) minmax(440px,1.12fr);gap:12px}.home-hero{padding:24px}.home-hero-inner{grid-template-columns:minmax(0,1.16fr) minmax(128px,.52fr);column-gap:14px}.home-shelf-date-md{font-size:clamp(34px,4vw,52px)}.home-time-axis{margin-top:14px}.home-weather-line{font-size:11px;max-width:310px}.home-literary{max-width:340px}.home-visual{width:min(190px,26vw);max-width:226px}.home-mosaic{height:142px;min-height:126px;margin-top:14px}.home-grid{gap:10px}.home-card{min-height:126px;padding:14px;border-radius:20px}.home-card-label{margin-bottom:6px}.home-card-title{font-size:16.5px;max-width:66%}.home-card-sub{margin-top:6px;font-size:10.8px;line-height:1.34;max-width:64%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.home-card-art{right:11px;bottom:11px;width:80px;height:80px;border-radius:18px}.home-card-art:not(.has-cover)::before{inset:14px;box-shadow:inset 0 0 0 11px rgba(5,5,8,.44),0 10px 24px rgba(0,0,0,.24)}.home-card::after{right:88px;bottom:14px;width:30px;height:56px}.home-rail{gap:8px}.home-tile{min-height:128px}.home-tile-cover{height:66px}}
+@media (max-height:760px){#empty-home{top:132px;bottom:44px}.empty-home-shell{min-height:0}.home-hero{min-height:0;padding:22px}.home-hero-inner{grid-template-columns:minmax(0,1.22fr) minmax(136px,.54fr);column-gap:14px}.home-shelf-date-md{font-size:clamp(32px,3.75vw,48px)}.home-shelf-date-wd{font-size:clamp(12px,1.3vw,15px)}.home-time-axis{margin-top:14px}.home-weather-line{font-size:10.8px;max-width:320px}.home-literary{max-width:330px}.home-quick-row{margin-top:16px}.home-visual{width:min(196px,27vw);max-width:236px}.home-mosaic{height:132px;min-height:120px;margin-top:14px}.home-card{min-height:134px;padding:14px}.home-card-title{font-size:17px}.home-card-art{width:92px;height:92px;border-radius:21px}.home-tile{min-height:132px}.home-tile-cover{height:72px}}
+@media (max-height:700px){#empty-home{top:126px;bottom:34px}.home-hero{padding:20px}.home-shelf-date-md{font-size:clamp(30px,3.55vw,44px)}.home-shelf-date-wd{font-size:clamp(11px,1.2vw,14px)}.home-time-axis{margin-top:12px}.home-weather-line{font-size:10.5px;max-width:300px;margin-top:10px}.home-literary{font-size:10px;max-width:310px;margin-top:6px}.home-quick-row{margin-top:12px}.home-visual{width:min(174px,24vw);max-width:216px}.home-mosaic{height:112px;min-height:104px}.home-card{min-height:112px;padding:12px}.home-card-title{font-size:15.5px}.home-card-sub{font-size:10.5px;line-height:1.28;-webkit-line-clamp:2}.home-card-art{width:70px;height:70px;border-radius:16px}.home-card::after{right:78px;height:48px}.home-tile{min-height:112px;padding:9px}.home-tile-cover{height:54px;margin-bottom:8px}.home-section-head{min-height:30px}}
 @media (max-width:840px){.empty-home-shell{grid-template-columns:minmax(250px,.86fr) minmax(360px,1.14fr)}.home-hero-inner{grid-template-columns:minmax(0,1fr)}.home-visual{display:none}.home-mosaic{height:124px;min-height:108px}.home-card{min-height:108px}.home-card-title{font-size:15px;max-width:68%}.home-card-sub{font-size:10.3px;max-width:62%}.home-card-art{width:66px;height:66px;border-radius:15px}.home-card::after{right:72px;width:24px;height:44px}.home-tile-title{font-size:11.5px}}
 @media (max-width:760px){#empty-home{top:150px;bottom:56px;width:calc(100vw - 40px)}.empty-home-shell{grid-template-columns:1fr;grid-template-rows:auto auto 1fr;overflow:auto;padding-bottom:4px}.home-hero{grid-row:auto;min-height:344px}.home-mosaic{height:172px;min-height:150px}.home-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.home-tile-row{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:620px){#empty-home{top:146px;bottom:44px;width:calc(100vw - 24px)}.home-hero{padding:20px;border-radius:22px}.home-hero-inner{display:flex;flex-direction:column}.home-shelf-date-md{font-size:clamp(28px,7vw,42px)}.home-shelf-date-wd{font-size:clamp(11px,3vw,14px)}.home-time-axis{margin-top:14px;max-width:100%}.home-visual{display:none}.home-mosaic{display:none}.home-grid{grid-template-columns:1fr}.home-tile-row{grid-template-columns:repeat(2,minmax(0,1fr))}.home-tile-cover{height:auto;aspect-ratio:1}.home-tile-sub{display:block}.home-card-art{width:88px;height:88px}.home-card-title,.home-card-sub{max-width:68%}}
 body.empty-home-active.controls-visible #empty-home{bottom:128px}
 @media (max-height:760px){body.empty-home-active.controls-visible #empty-home{bottom:112px}}
-@media (max-width:620px){#empty-home{top:146px;bottom:44px;width:calc(100vw - 24px)}.home-hero{padding:20px;border-radius:22px}.home-hero-inner{display:flex;flex-direction:column}.home-visual{display:none}.home-mosaic{display:none}.home-grid{grid-template-columns:1fr}.home-tile-row{grid-template-columns:repeat(2,minmax(0,1fr))}.home-tile-cover{height:auto;aspect-ratio:1}.home-tile-sub{display:block}.home-card-art{width:88px;height:88px}.home-card-title,.home-card-sub{max-width:68%}}
 .home-visual.generated{height:74px!important;max-width:300px!important;align-self:center!important}
 @media (max-height:760px){.home-visual.generated{height:64px!important;max-width:260px!important}}
 
@@ -389,7 +403,7 @@ body.desktop-shell.desktop-fullscreen .home-mosaic-cell.has-cover,html:fullscree
 @media (max-height:760px){
   body.desktop-shell #empty-home{top:118px;bottom:34px}
   body.desktop-shell .home-hero{min-height:330px;padding:22px}
-  body.desktop-shell .home-visual{height:196px;max-width:260px}
+  body.desktop-shell .home-visual{width:min(196px,27vw);max-width:250px}
   body.desktop-shell .home-card{min-height:128px;padding:14px}
   body.desktop-shell .home-tile{min-height:130px}
   body.desktop-shell .home-tile-cover{height:70px}
@@ -400,9 +414,9 @@ body.desktop-shell.desktop-fullscreen .home-mosaic-cell.has-cover,html:fullscree
   body.desktop-shell .empty-home-shell{grid-template-columns:minmax(300px,.88fr) minmax(430px,1.12fr);gap:12px}
   body.desktop-shell .home-hero{padding:22px}
   body.desktop-shell .home-hero-inner{grid-template-columns:minmax(0,1.16fr) minmax(126px,.52fr);column-gap:14px}
-  body.desktop-shell .home-title{font-size:clamp(30px,4vw,48px);max-width:340px}
-  body.desktop-shell .home-sub{font-size:12.5px;line-height:1.5;max-width:314px}
-  body.desktop-shell .home-visual{height:190px;max-width:226px}
+  body.desktop-shell .home-shelf-date-md{font-size:clamp(32px,4vw,48px)}
+  body.desktop-shell .home-weather-line{font-size:11px;max-width:310px}
+  body.desktop-shell .home-visual{width:min(180px,25vw);max-width:216px}
   body.desktop-shell .home-mosaic{height:132px;min-height:116px;margin-top:14px}
   body.desktop-shell .home-grid{gap:10px}
   body.desktop-shell .home-card{min-height:122px;padding:14px}
@@ -418,11 +432,11 @@ body.desktop-shell.desktop-fullscreen .home-mosaic-cell.has-cover,html:fullscree
 @media (max-height:700px){
   body.desktop-shell #empty-home{top:106px;bottom:30px}
   body.desktop-shell .home-hero{min-height:0;padding:18px}
-  body.desktop-shell .home-title{font-size:clamp(27px,3.5vw,40px)}
-  body.desktop-shell .home-sub{font-size:11.8px;line-height:1.4}
-  body.desktop-shell .home-weather-meta{margin-top:11px}
+  body.desktop-shell .home-shelf-date-md{font-size:clamp(28px,3.5vw,42px)}
+  body.desktop-shell .home-shelf-date-wd{font-size:clamp(11px,1.2vw,14px)}
+  body.desktop-shell .home-weather-line{font-size:10.5px;margin-top:11px}
   body.desktop-shell .home-quick-row{margin-top:12px}
-  body.desktop-shell .home-visual{height:166px;max-width:206px}
+  body.desktop-shell .home-visual{width:min(160px,23vw);max-width:206px}
   body.desktop-shell .home-mosaic{height:104px;min-height:98px}
   body.desktop-shell .home-card{min-height:104px;padding:12px}
   body.desktop-shell .home-card-title{font-size:15px}
@@ -1947,16 +1961,56 @@ html.control-glass-svg-ok #visual-guide-btn:hover{
   <div class="empty-home-shell">
     <div class="home-hero">
       <div class="home-hero-inner">
-      <div class="home-kicker" id="home-date-kicker">Mineradio</div>
-      <div class="home-title" id="home-date-title">-</div>
-      <div class="home-sub" id="home-date-sub">-</div>
-      <div class="home-weather-meta" id="home-weather-meta"></div>
-      <div class="home-quick-row">
-        <button class="home-chip home-console-chip" type="button" onclick="openHomePlayerConsole()">展开播放器控制台</button>
+      <div class="home-left-group">
+        <div class="home-top-block">
+          <div class="home-kicker home-kicker--greeting" id="home-date-kicker">Mineradio</div>
+          <div class="home-shelf-date" id="home-shelf-date">
+            <span class="home-shelf-date-md" id="home-shelf-date-md">-</span>
+            <span class="home-shelf-date-sep">|</span>
+            <span class="home-shelf-date-wd" id="home-shelf-date-wd">-</span>
+          </div>
+          <div class="home-time-axis" id="home-time-axis">
+            <div class="home-time-axis-track">
+              <span class="home-time-axis-tick"></span>
+              <span class="home-time-axis-tick home-time-axis-tick--q1"></span>
+              <span class="home-time-axis-tick home-time-axis-tick--half"></span>
+              <span class="home-time-axis-tick home-time-axis-tick--q3"></span>
+              <span class="home-time-axis-tick home-time-axis-tick--end"></span>
+              <div class="home-time-axis-dot" id="home-day-progress-dot"></div>
+            </div>
+            <div class="home-time-axis-labels">
+              <span>00:00</span>
+              <span>24:00</span>
+            </div>
+          </div>
+          <div class="home-weather-line" id="home-weather-line"></div>
+          <div class="home-literary" id="home-literary"></div>
+        </div>
+        <button class="home-weather-radio-prompt" id="home-weather-radio-prompt" type="button" onclick="startWeatherRadio()" title="启动天气电台">
+          <span class="home-weather-radio-prompt-text" id="home-weather-radio-prompt-text"></span>
+          <svg class="home-weather-radio-prompt-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+        <div class="home-quick-row">
+          <button class="home-chip home-console-chip home-console-chip--thin" type="button" onclick="openHomePlayerConsole()">展开播放器控制台</button>
+        </div>
       </div>
-      <div class="home-visual" id="empty-home-visual">
-        <div class="home-sleeve"></div>
-        <div class="home-disc"></div>
+      <div class="home-visual home-visual--aperture" id="empty-home-visual">
+        <svg class="home-aperture" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <g stroke="currentColor" stroke-width="1" fill="none" opacity="0.18">
+            <line x1="100" y1="18" x2="100" y2="48" />
+            <line x1="100" y1="152" x2="100" y2="182" />
+            <line x1="18" y1="100" x2="48" y2="100" />
+            <line x1="152" y1="100" x2="182" y2="100" />
+            <line x1="42" y1="42" x2="63" y2="63" />
+            <line x1="137" y1="137" x2="158" y2="158" />
+            <line x1="158" y1="42" x2="137" y2="63" />
+            <line x1="42" y1="158" x2="63" y2="137" />
+          </g>
+          <circle cx="100" cy="100" r="86" fill="none" stroke="currentColor" stroke-width="1" opacity="0.10" />
+          <circle cx="100" cy="100" r="56" fill="none" stroke="currentColor" stroke-width="1" opacity="0.14" />
+          <circle cx="100" cy="100" r="26" fill="none" stroke="currentColor" stroke-width="1" opacity="0.55" class="home-aperture-accent" />
+          <circle cx="100" cy="100" r="3" fill="currentColor" opacity="0.65" class="home-aperture-accent" />
+        </svg>
       </div>
     </div>
     </div>
@@ -2724,6 +2778,7 @@ var homeVisualPresetActive = false;
 var homeVisualPrevPreset = 0;
 var HOME_LISTEN_STATS_KEY = 'mineradio-listen-stats-v1';
 var HOME_WEATHER_CITY_KEY = 'mineradio-weather-city';
+var HOME_WEATHER_CONFIGURED_KEY = 'mineradio-weather-configured';
 var homeWeatherRadioState = { loading: false, loaded: false, city: localStorage.getItem(HOME_WEATHER_CITY_KEY) || '上海', weather: null, radio: null, error: '', updatedAt: 0 };
 var homeWeatherToken = 0;
 var homeWeatherLoadTimer = null;
@@ -15528,49 +15583,221 @@ function formatHomeDate() {
   var m = now.getMonth() + 1;
   var d = now.getDate();
   var w = weekDays[now.getDay()];
-  return m + '月' + d + '日 星期' + w;
+  return { md: m + '月' + d + '日', wd: '星期' + w };
+}
+var homeLiterarySentences = [
+  '音乐是时间的容器，承载着遗忘的记忆。',
+  '每一个音符都是宇宙的一次呼吸。',
+  '在声音的褶皱里，藏着另一个世界。',
+  '听风穿过城市的缝隙，那是大地的低语。',
+  '夜晚的电台，是孤独者共同的秘密。',
+  '声音比影像更接近灵魂的真相。',
+  '一首歌的时间，足够穿越一个季节。',
+  '耳机里的世界，比现实更真实。',
+  '频率之外，是未曾抵达的远方。',
+  '用耳朵去旅行，不需要地图。',
+  '音乐响起时，时间开始变慢。',
+  '那些说不出口的，都藏在歌词里。'
+];
+var homeQuoteByMood = {
+  clear: [
+    '光从窗帘缝隙落进房间，刚好停在音箱前面。',
+    '没有风的正午，节奏是唯一的对流。',
+    '今天的空气够透明，适合把音量调高一格。',
+    '晴朗到连低频都晒出了温度。',
+    '耳机线在阳光下拖出一道很细的影子。',
+    '窗外太亮了，闭上眼声音反而更清楚。',
+    '一首歌的时间，窗外的云走了一个半拍。',
+    '光线穿透玻璃，在旋律上碎成很小的一块。'
+  ],
+  storm: [
+    '窗外雷声不请自来，耳机是此刻的避难所。',
+    '低频混着雨声，整个房间往下沉了一寸。',
+    '钢琴键上好像也落了雨，每个音都变重了。',
+    '雷声是今天唯一不需要调音轨的打击乐。',
+    '风暴过境的时候，音乐是最好的隔音材料。',
+    '在这种天气里，人声比乐器更容易听进去。',
+    '把音量拧到刚好盖过雨声，不多不少。'
+  ],
+  rain: [
+    '雨声敲在窗上，正好走在节奏间隙。',
+    '城市被雨洗过之后，低频显得更干净。',
+    '潮湿的空气会吸收高频，留下温润的中间部分。',
+    '窗台积了一小滩水，倒映着跳动的频谱。',
+    '下雨天的人声自带混响，不需要后期。',
+    '每一滴雨水都敲在它自己的拍子上。',
+    '雨水是今天唯一不需要付费的伴奏带。',
+    '在这样潮湿的天气里，连鼓点都变软了。'
+  ],
+  snow: [
+    '窗外安静得像被按了静音键，只有呼吸和节奏。',
+    '雪花落地的声音太小了，所以音乐得轻一点。',
+    '冷空气让声音传播得比平时慢半拍。',
+    '在零度以下的天气，钢琴比平时更有颗粒感。',
+    '整个世界降低了饱和度，只有中频还亮着。',
+    '冬天适合把音乐调慢，让音符有更多空间散开。'
+  ],
+  humid: [
+    '空气稠得像可以摸到声音的形状。',
+    '闷热让低音变得更饱满，但高音有些昏昏欲睡。',
+    '在夏天，音乐总是更容易出汗。',
+    '把空调开低两度，然后听一张更凉的专辑。',
+    '蝉鸣是夏日天然的底噪，混进任何曲风都不违和。',
+    '湿度太高的时候，毛玻璃上的频谱更好看。',
+    '海风把旋律吹散了，又拼回来，少了几个音。'
+  ],
+  cloudy: [
+    '天光均匀铺开，像一支没有强弱变化的器乐曲。',
+    '云层太厚，信号都需要多穿越一公里。',
+    '阴天的人声自带一层很薄的雾气。',
+    '灰色天空下面是和弦进行最舒服的时刻。',
+    '在云层和地面之间，剩余频率刚好是蓝色。',
+    '没有阳光干扰，声场比平时宽出去一寸。',
+    '阴天适合用耳机的细节来补足缺失的光线。'
+  ],
+  'clear-night': [
+    '深夜的安静里，连呼吸都有了自己的频率。',
+    '月亮挂得很高，钢琴的低音部分刚好够到。',
+    '这个时间还在响的音乐，都是没说出口的话。',
+    '所有频率都睡着了，只剩下一轨人声醒着。',
+    '夜晚让音乐变慢了，节拍器跟不上心跳。',
+    '在凌晨，耳机的声场会向窗外延展半米。',
+    '城市关了灯，播放器是唯一还在工作的星星。'
+  ],
+  'storm-night': [
+    '夜里的雷声像远处有人在调一台很旧的收音机。',
+    '整座城市都在冒雨赶路，只有你和音箱停在原地。',
+    '风暴把夜晚的沉默劈开，音符趁机溜进来。',
+    '雨夜不需要旋律指引，节奏会自己找到出口。',
+    '关了窗，外面的一切就只是播放列表的背景采样。',
+    '雷雨的夜晚，更暗的音色反而更接近光亮。'
+  ],
+  'rain-night': [
+    '夜雨把窗外的世界洗成一张很慢的黑胶唱片。',
+    '在雨夜，音乐和水声之间只剩一层很薄的玻璃。',
+    '深夜里每一滴雨都落在它该落的位置，像鼓点。',
+    '关了灯以后，雨声和人声很难分清谁更孤独。',
+    '夜晚的雨有自己的节拍，不需要节拍器。',
+    '窗上的雨痕把远处的路灯打成流动的频谱。',
+    '在这个时间听雨，实际上是在听时间从房檐滑落。'
+  ],
+  'snow-night': [
+    '下雪的夜晚，世界被消音成了钢琴独奏。',
+    '雪落在屋顶的声音只有耳机的低频能捕捉到。',
+    '寒冷让每一个音符都有了可见的呼吸。',
+    '窗外白雪如毯，时间被消音成很慢的钢琴。',
+    '零度以下的频率走得更慢，像雪花落地的速度。',
+    '在这安静的雪夜，连电流声都有了些许温度。'
+  ],
+  'humid-night': [
+    '夏夜的湿度让音乐贴着皮肤流过，不像听，像浸泡。',
+    '闷热的夜晚，人声像刚蒸过一样柔软。',
+    '潮湿的空气中低频走不动，留在耳边更久。',
+    '夜晚的闷热是声音的减速带。',
+    '汗水混着耳机线，今晚的音乐自带体温。',
+    '夏夜的音乐总是比冬天多一层黏稠的质感。'
+  ],
+  'cloudy-night': [
+    '云遮住了月亮，但耳机的频段里还有一点光亮。',
+    '阴沉的夜最适合把音乐调到只有自己听得见的音量。',
+    '夜空没有星星，那就让频谱仪代替。',
+    '云层把夜晚压得很低，声音只能贴着地面爬行。',
+    '在这种没有月光的晚上，更需要一轨干净的钢琴。',
+    '深夜的阴天是一片没有频率标注的空白频谱。'
+  ],
+  _fallback: [
+    '音乐是时间的容器，承载着遗忘的记忆。',
+    '每一个音符都是宇宙的一次呼吸。',
+    '在声音的褶皱里，藏着另一个世界。',
+    '夜晚的电台，是孤独者共同的秘密。',
+    '声音比影像更接近灵魂的真相。',
+    '一首歌的时间，足够穿越一个季节。',
+    '耳机里的世界，比现实更真实。',
+    '那些说不出口的，都藏在歌词里。'
+  ]
+};
+var homeCachedQuote = '';
+function pickHomeQuote(mood) {
+  var key = String(mood && mood.key || '');
+  var group = homeQuoteByMood[key];
+  if (!group) {
+    var baseKey = key.replace('-night', '');
+    group = homeQuoteByMood[baseKey];
+  }
+  if (!group) group = homeQuoteByMood._fallback;
+  if (!group || !group.length) return '';
+  return group[Math.floor(Math.random() * group.length)];
 }
 function renderHomeDiscover() {
-  var sub = document.getElementById('home-date-sub');
   var loggedOutHome = !homeDiscoverState.loggedIn && !hasAnyPlatformLogin();
   var weather = homeWeatherRadioState.weather;
-  var radio = homeWeatherRadioState.radio;
   var weatherLocation = weather && weather.location && weather.location.name || homeWeatherRadioState.city || '上海';
-  var dateTitle = document.getElementById('home-date-title');
+  var dateParts = formatHomeDate();
+  var dateMd = document.getElementById('home-shelf-date-md');
+  var dateWd = document.getElementById('home-shelf-date-wd');
   var dateKicker = document.getElementById('home-date-kicker');
-  var weatherMeta = document.getElementById('home-weather-meta');
-  if (dateTitle) dateTitle.textContent = formatHomeDate();
+  var weatherLine = document.getElementById('home-weather-line');
+  var literaryEl = document.getElementById('home-literary');
+  var progressDot = document.getElementById('home-day-progress-dot');
+  if (dateMd) dateMd.textContent = dateParts.md;
+  if (dateWd) dateWd.textContent = dateParts.wd;
   if (dateKicker) {
     var hour = new Date().getHours();
     var greeting = hour < 6 ? '夜深了' : hour < 9 ? '早上好' : hour < 12 ? '上午好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : hour < 21 ? '晚上好' : '夜深了';
-    dateKicker.textContent = greeting + ' · Mineradio';
+    dateKicker.textContent = greeting + ' · MINERADIO';
   }
-  if (sub) {
-    if (loggedOutHome) {
-      var likedCount = (localLikedSongs || []).length;
-      var plCount = (localPlaylists || []).length;
-      if (likedCount || plCount) {
-        sub.textContent = '本地 ' + (likedCount ? likedCount + ' 首红心收藏' : '') + (likedCount && plCount ? ' · ' : '') + (plCount ? plCount + ' 个歌单' : '') + ' · 搜索添加更多';
-      } else {
-        sub.textContent = '搜索酷狗音乐，点亮红心开始收藏；也可以直接导入本地音乐。';
-      }
-    } else {
-      sub.textContent = '从你的歌单、最近播放和常听歌手开始，天气电台放在需要氛围的时候再开。';
-    }
+  if (progressDot) {
+    var now = new Date();
+    var pct = (now.getHours() * 60 + now.getMinutes()) / 1440 * 100;
+    progressDot.style.left = Math.min(100, Math.max(0, pct)) + '%';
   }
-  if (weatherMeta) {
-    var meta = [];
+  if (weatherLine) {
+    var parts = [];
     if (weather) {
-      meta.push(weatherLocation);
-      meta.push(weather.label + ' ' + Math.round(weather.temperature || 0) + '°');
-      meta.push('体感 ' + Math.round(weather.apparentTemperature || weather.temperature || 0) + '°');
-      if (isFinite(weather.humidity)) meta.push('湿度 ' + Math.round(weather.humidity) + '%');
-      if (isFinite(weather.windSpeed) && weather.windSpeed > 0) meta.push('风速 ' + Math.round(weather.windSpeed) + ' km/h');
+      parts.push(weatherLocation);
+      parts.push(weather.label + ' ' + Math.round(weather.temperature || 0) + '°');
+      parts.push('体感 ' + Math.round(weather.apparentTemperature || weather.temperature || 0) + '°');
+      if (isFinite(weather.humidity)) parts.push('湿度 ' + Math.round(weather.humidity) + '%');
+      if (isFinite(weather.windSpeed) && weather.windSpeed > 0) parts.push('风速 ' + Math.round(weather.windSpeed) + ' km/h');
     } else {
-      meta.push(weatherLocation);
-      meta.push(homeWeatherRadioState.error ? '天气暂不可用' : '正在获取天气...');
+      parts.push(weatherLocation);
+      parts.push(homeWeatherRadioState.error ? '天气暂不可用' : '正在获取天气...');
     }
-    weatherMeta.innerHTML = meta.map(function(text){ return '<span class="home-weather-pill">' + escHtml(text) + '</span>'; }).join('');
+    weatherLine.textContent = parts.join(' · ');
+    var editSpan = document.createElement('span');
+    editSpan.className = 'home-weather-edit';
+    editSpan.textContent = '改';
+    weatherLine.appendChild(editSpan);
+    weatherLine.style.cursor = 'pointer';
+    weatherLine.title = '点击切换城市';
+    weatherLine.onclick = null;
+    weatherLine.addEventListener('click', function weatherLineClick(e) {
+      e.stopPropagation();
+      changeWeatherCity();
+    });
+  }
+  if (literaryEl) {
+    if (!homeCachedQuote) {
+      var mood = weather && weather.mood;
+      homeCachedQuote = pickHomeQuote(mood);
+    }
+    literaryEl.textContent = homeCachedQuote;
+  }
+  var wrPrompt = document.getElementById('home-weather-radio-prompt');
+  var wrPromptText = document.getElementById('home-weather-radio-prompt-text');
+  if (wrPrompt && wrPromptText) {
+    var mood = weather && weather.mood;
+    if (weather && mood && mood.title) {
+      wrPrompt.classList.add('show');
+      wrPrompt.style.cursor = 'pointer';
+      wrPromptText.textContent = mood.title + ' · ' + (mood.tagline || '');
+    } else if (!weather && homeWeatherRadioState.loading) {
+      wrPrompt.classList.add('show');
+      wrPrompt.style.cursor = 'default';
+      wrPromptText.textContent = '正在生成天气电台...';
+    } else {
+      wrPrompt.classList.remove('show');
+    }
   }
   var daily = homeDiscoverState.songs[0] || null;
   var cardSongB = homeDiscoverState.songs[1] || null;
@@ -15843,6 +16070,7 @@ function locateWeatherRadio() {
       locationSettled = true;
       homeWeatherRadioState.city = loc.city || '当前位置';
       localStorage.setItem(HOME_WEATHER_CITY_KEY, homeWeatherRadioState.city);
+      localStorage.setItem(HOME_WEATHER_CONFIGURED_KEY, '1');
       renderHomeDiscover();
       showToast('已用网络位置定位到 ' + (loc.city || '当前位置'));
       loadHomeWeatherRadio(true, {
@@ -15861,8 +16089,31 @@ function locateWeatherRadio() {
       showToast('定位不可用，可以手动换城市');
     });
   }
-  // Desktop users need a stable city label; browser coordinates can be stale or cityless.
-  useIpFallback();
+  // 优先浏览器 GPS 定位（桌面 WiFi / 基站精度远高于 IP 库），失败再走 IP 兜底
+  if (navigator && navigator.geolocation) {
+    var geoTimer = setTimeout(function() {
+      if (!locationSettled && !ipFallbackStarted) useIpFallback();
+    }, 5000);
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      clearTimeout(geoTimer);
+      if (locationSettled || !pos || !pos.coords) return;
+      locationSettled = true;
+      var lat = pos.coords.latitude;
+      var lon = pos.coords.longitude;
+      homeWeatherRadioState.city = '已定位';
+      localStorage.setItem(HOME_WEATHER_CITY_KEY, homeWeatherRadioState.city);
+      localStorage.setItem(HOME_WEATHER_CONFIGURED_KEY, '1');
+      renderHomeDiscover();
+      showToast('已获取到你的位置');
+      loadHomeWeatherRadio(true, { lat: lat, lon: lon, city: '当前位置', timezone: '' });
+    }, function(err) {
+      clearTimeout(geoTimer);
+      console.warn('browser geolocation failed:', err && err.message);
+      if (!locationSettled && !ipFallbackStarted) useIpFallback();
+    }, { enableHighAccuracy: false, timeout: 4000, maximumAge: 600000 });
+  } else {
+    useIpFallback();
+  }
 }
 function changeWeatherCity() {
   var city = window.prompt('输入城市名', homeWeatherRadioState.city || '上海');
@@ -15870,6 +16121,7 @@ function changeWeatherCity() {
   if (!city) return;
   homeWeatherRadioState.city = city;
   localStorage.setItem(HOME_WEATHER_CITY_KEY, city);
+  localStorage.setItem(HOME_WEATHER_CONFIGURED_KEY, '1');
   homeWeatherRadioState.loaded = false;
   loadHomeWeatherRadio(true, { city: city });
 }
@@ -15989,6 +16241,7 @@ function applyStartupStarfieldPreset() {
 function updateEmptyHomeVisibility(opts) {
   opts = opts || {};
   var show = shouldShowEmptyHome();
+  if (show && !emptyHomeActive) { homeCachedQuote = ''; }
   emptyHomeActive = show;
   document.body.classList.toggle('empty-home-active', show);
   if (!show) setHomeControlsLocked(false);
@@ -15997,7 +16250,11 @@ function updateEmptyHomeVisibility(opts) {
   if (show) {
     setPeek(document.getElementById('search-area'), true, 'search');
     renderHomeDiscover();
-    scheduleHomeWeatherLoad(opts.forceLoad ? 1400 : 2400);
+    if (!localStorage.getItem(HOME_WEATHER_CONFIGURED_KEY)) {
+      locateWeatherRadio();
+    } else {
+      scheduleHomeWeatherLoad(opts.forceLoad ? 1400 : 2400);
+    }
     if (!hasAnyPlatformLogin()) {
       homeDiscoverState.loading = false;
       homeDiscoverState.loaded = true;
