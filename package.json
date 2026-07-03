@@ -66,16 +66,16 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "XxHuberrr",
-        "repo": "Mineradio"
+        "owner": "wangbiao2005",
+        "repo": "Mineradio-KG"
       }
     ]
   },
   "mineradio": {
     "update": {
       "provider": "github",
-      "owner": "XxHuberrr",
-      "repo": "Mineradio",
+      "owner": "wangbiao2005",
+      "repo": "Mineradio-KG",
       "preview": true,
       "preferMirrors": true,
       "mirrors": [
