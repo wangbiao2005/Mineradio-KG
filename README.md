@@ -15,7 +15,7 @@ Mineradio 是一款 **免费听歌** 的 Windows 桌面沉浸式音乐播放器�
 
 ## 下载
 
-[**👉 点击下载最新版 Mineradio-1.1.1-Setup.exe**](https://github.com/wangbiao2005/Mineradio-KG/releases/download/v1.1.1/Mineradio-1.1.1-Setup.exe)
+[**👉 点击下载最新版 Mineradio-1.1.6-Setup.exe**](https://github.com/wangbiao2005/Mineradio-KG/releases/download/v1.1.6/Mineradio-1.1.6-Setup.exe)
 
 所有版本详见 [Releases 页面](https://github.com/wangbiao2005/Mineradio-KG/releases)。
 

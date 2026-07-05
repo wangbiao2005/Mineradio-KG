@@ -17,6 +17,7 @@ const EVENT_NAMES = {
 const loadedSources = {};
 const requestHandlers = [];
 let currentScriptInfo = null;
+const KG_ONLY_MODE = process.env.MINERADIO_KG_ONLY !== '0';
 
 process.on('unhandledRejection', (reason) => {
   const stack = reason && reason.stack || '';
@@ -100,6 +101,7 @@ function send(eventName, data) {
   if (eventName !== EVENT_NAMES.inited) return Promise.resolve();
   if (data && data.sources) {
     for (const [sourceKey, sourceInfo] of Object.entries(data.sources)) {
+      if (KG_ONLY_MODE && sourceKey !== 'kg') continue;
       if (!sourceInfo || sourceInfo.type !== 'music') continue;
       loadedSources[sourceKey] = {
         name: sourceInfo.name || sourceKey,
@@ -109,7 +111,7 @@ function send(eventName, data) {
         scriptName: currentScriptInfo ? currentScriptInfo.name : 'unknown',
       };
     }
-    console.log(`[LX Source] 已注册音源: ${Object.keys(data.sources).join(', ')}`);
+    console.log(`[LX Source] 已注册音源: ${Object.keys(loadedSources).join(', ') || 'none'}`);
   }
   return Promise.resolve();
 }
@@ -271,6 +273,17 @@ function fixKgQualityLevel(url) {
 }
 
 async function normalizeActionResult(action, value) {
+  if (action === 'search') {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === 'object') {
+      const data = value.data || value.body || value.result || value;
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.list)) return data.list;
+      if (Array.isArray(data.songs)) return data.songs;
+      if (data.data && Array.isArray(data.data.list)) return data.data.list;
+    }
+    return [];
+  }
   if (action === 'musicUrl') {
     let url;
     if (typeof value === 'string' && /^https?:/.test(value)) url = value;
@@ -350,6 +363,16 @@ async function getMusicPic(source, musicInfo) {
   return callSourceAction(source, 'pic', musicInfo, '');
 }
 
+async function searchMusic(source, keywords, page, limit) {
+  return callSourceAction(source, 'search', {
+    keyword: keywords,
+    keywords,
+    searchText: keywords,
+    page: page || 1,
+    limit: limit || 20,
+  }, '');
+}
+
 function getLoadedSources() {
   const result = {};
   for (const [key, info] of Object.entries(loadedSources)) {
@@ -371,6 +394,7 @@ module.exports = {
   getMusicUrl,
   getMusicLyric,
   getMusicPic,
+  searchMusic,
   getLoadedSources,
   loadedSources,
 };

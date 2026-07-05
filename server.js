@@ -13,6 +13,19 @@ const tls = require('tls');
 const { once } = require('events');
 const { fileURLToPath } = require('url');
 const { analyzePodcastDjStream, analyzePodcastDjIntro } = require('./dj-analyzer');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const { HttpProxyAgent } = require('http-proxy-agent');
+
+// 代理配置（读取环境变量，未设则为 null，走直连）
+function readProxyUrl() {
+  return process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.https_proxy || '';
+}
+function resolveProxyAgent(targetUrl) {
+  const proxyUrl = readProxyUrl();
+  if (!proxyUrl) return null;
+  const protocol = (targetUrl && (new URL(targetUrl)).protocol) || 'https:';
+  return protocol === 'https:' ? new HttpsProxyAgent(proxyUrl) : new HttpProxyAgent(proxyUrl);
+}
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -36,6 +49,8 @@ const UPDATE_FALLBACK_NOTES = [
 const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const OPEN_METEO_GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const WEATHER_IP_LOCATION_URL = 'http://ip-api.com/json/';
+const PCONLINE_IP_URL = 'https://whois.pconline.com.cn/ipJson.jsp?json=true';
+const WEATHER_TIMEOUT_MS = 5000;  // 天气请求统一超时（秒级失败感知）
 const WEATHER_DEFAULT_LOCATION = {
   name: '上海',
   country: 'China',
@@ -43,6 +58,213 @@ const WEATHER_DEFAULT_LOCATION = {
   longitude: 121.4737,
   timezone: 'Asia/Shanghai',
 };
+
+// ====================================================================
+//  音源健康度统计 & 自动降权
+//  - 记录最近 N 次 getMusicUrl 调用结果
+//  - 成功率低于阈值自动降权（调后优先级，不彻底禁用）
+//  - 定期持久化到 source-health.json
+// ====================================================================
+const SOURCE_HEALTH_MAX_SAMPLES = 50;
+const SOURCE_HEALTH_DEGRADE_THRESHOLD = 0.5; // 成功率低于50%触发降权
+const SOURCE_HEALTH_PERSIST_INTERVAL_MS = 5 * 60 * 1000;
+const SOURCE_HEALTH_FILE = path.join(__dirname, 'source-health.json');
+const BUILTIN_SOURCES = ['kg'];
+
+const sourceHealth = {}; // { kg: { samples: [...], degraded: false }, ... }
+
+function initSourceHealth() {
+  BUILTIN_SOURCES.forEach(key => {
+    sourceHealth[key] = sourceHealth[key] || { samples: [], degraded: false };
+  });
+  // 外部 LX 音源也纳入统计
+  const loaded = getLoadedSources();
+  Object.keys(loaded).forEach(key => {
+    if (!sourceHealth[key]) sourceHealth[key] = { samples: [], degraded: false };
+  });
+  loadSourceHealthFile();
+}
+
+function loadSourceHealthFile() {
+  try {
+    if (!fs.existsSync(SOURCE_HEALTH_FILE)) return;
+    const raw = fs.readFileSync(SOURCE_HEALTH_FILE, 'utf8');
+    const saved = JSON.parse(raw);
+    if (saved && typeof saved === 'object') {
+      Object.keys(saved).forEach(key => {
+        const entry = saved[key];
+        if (entry && Array.isArray(entry.samples)) {
+          sourceHealth[key] = sourceHealth[key] || { samples: [], degraded: false };
+          sourceHealth[key].samples = entry.samples.slice(-SOURCE_HEALTH_MAX_SAMPLES);
+          sourceHealth[key].degraded = !!entry.degraded;
+        }
+      });
+      console.log('[SourceHealth] 已加载历史统计, ' + Object.keys(saved).length + ' 个音源');
+    }
+  } catch (e) {
+    console.warn('[SourceHealth] 加载历史文件失败:', e.message);
+  }
+}
+
+function persistSourceHealth() {
+  try {
+    const cleaned = {};
+    Object.keys(sourceHealth).forEach(key => {
+      const entry = sourceHealth[key];
+      if (entry && entry.samples && entry.samples.length) {
+        cleaned[key] = { samples: entry.samples.slice(-SOURCE_HEALTH_MAX_SAMPLES), degraded: entry.degraded };
+      }
+    });
+    fs.writeFileSync(SOURCE_HEALTH_FILE, JSON.stringify(cleaned, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('[SourceHealth] 持久化失败:', e.message);
+  }
+}
+
+function classifyError(err) {
+  const msg = String(err && err.message || err || '').toLowerCase();
+  if (msg.includes('timeout') || msg.includes('超时')) return 'timeout';
+  if (msg.includes('无结果') || msg.includes('no result') || msg.includes('empty')) return 'no_result';
+  if (msg.includes('域名不可达') || msg.includes('dns') || msg.includes('enotfound') || msg.includes('econnrefused')) return 'dns_unreachable';
+  if (msg.includes('econnreset') || msg.includes('socket') || msg.includes('network')) return 'network_error';
+  if (msg.includes('无效') || msg.includes('invalid') || msg.includes('copyright') || msg.includes('版权')) return 'invalid_response';
+  return 'api_error';
+}
+
+function recordSourceRequest(source, success, latencyMs, reason) {
+  if (!source) return;
+  if (!sourceHealth[source]) {
+    sourceHealth[source] = { samples: [], degraded: false };
+  }
+  const entry = sourceHealth[source];
+  entry.samples.push({ success, latencyMs, timestamp: Date.now(), reason: reason || '' });
+  while (entry.samples.length > SOURCE_HEALTH_MAX_SAMPLES) entry.samples.shift();
+  // 实时重算降权
+  recalcSourcePriority();
+}
+
+function recalcSourcePriority() {
+  BUILTIN_SOURCES.forEach(key => {
+    const entry = sourceHealth[key];
+    if (!entry || !entry.samples || entry.samples.length < 5) {
+      if (entry) entry.degraded = false;
+      return;
+    }
+    const recent = entry.samples.slice(-Math.min(20, entry.samples.length));
+    const successCount = recent.filter(s => s.success).length;
+    const rate = successCount / recent.length;
+    // KG 永不降权（只调优先级，不彻底排除）
+    if (key === 'kg') {
+      entry.degraded = rate < SOURCE_HEALTH_DEGRADE_THRESHOLD;
+      return;
+    }
+    entry.degraded = rate < SOURCE_HEALTH_DEGRADE_THRESHOLD;
+  });
+}
+
+function getFallbackOrder(srcKey) {
+  // 返回降权后的换源尝试顺序
+  recalcSourcePriority();
+  const normal = ['kg'].filter(k => k !== srcKey);
+  if (srcKey === 'kg') normal.unshift('kg');
+  // 降权的源移到末尾
+  const ok = normal.filter(k => !sourceHealth[k] || !sourceHealth[k].degraded);
+  const degraded = normal.filter(k => sourceHealth[k] && sourceHealth[k].degraded);
+  return ok.concat(degraded);
+}
+
+function getSourceHealthData() {
+  recalcSourcePriority();
+  const loadedExternal = getLoadedSources(); // 外置 .js 脚本注册的音源
+  const allKeys = new Set([...BUILTIN_SOURCES, ...Object.keys(sourceHealth), ...Object.keys(loadedExternal)]);
+  const entries = [];
+  allKeys.forEach(key => {
+    const healthEntry = sourceHealth[key] || { samples: [], degraded: false };
+    const samples = healthEntry.samples || [];
+    const total = samples.length;
+    const successCount = samples.filter(s => s.success).length;
+    const recentSuccess = samples.slice(-Math.min(20, total)).filter(s => s.success).length;
+    const recentTotal = Math.min(20, total);
+    const recentRate = recentTotal > 0 ? (recentSuccess / recentTotal) : 1;
+    const avgLatency = samples.filter(s => s.success).length > 0
+      ? Math.round(samples.filter(s => s.success).reduce((sum, s) => sum + (s.latencyMs || 0), 0) / samples.filter(s => s.success).length)
+      : 0;
+    const lastFailure = [...samples].reverse().find(s => !s.success);
+    const isBuiltin = BUILTIN_SOURCES.includes(key);
+    const extMeta = loadedExternal[key] || null;
+    const sourceType = isBuiltin ? (extMeta ? 'builtin+external' : 'builtin') : (extMeta ? 'external' : 'unknown');
+    entries.push({
+      key,
+      name: key.toUpperCase(),
+      sourceType,                          // builtin | external | builtin+external | unknown
+      isBuiltin,
+      hasExternalHandler: !!extMeta,
+      scriptName: extMeta ? extMeta.scriptName || '' : '',     // .js 文件名（外置来源）
+      supportedActions: extMeta ? (extMeta.actions || []) : (isBuiltin ? ['search','musicUrl','lyric','pic'] : []),
+      successRate: total > 0 ? Math.round((successCount / total) * 1000) / 10 : 100,
+      recentRate: Math.round(recentRate * 1000) / 10,
+      avgLatency,
+      lastFailure: lastFailure ? lastFailure.reason || '' : '',
+      lastFailureTime: lastFailure ? lastFailure.timestamp : null,
+      degraded: !!healthEntry.degraded,
+      sampleCount: total,
+    });
+  });
+  // 排序：内置优先，KG第一
+  entries.sort((a, b) => {
+    if (a.key === 'kg') return -1;
+    if (b.key === 'kg') return 1;
+    if (a.isBuiltin !== b.isBuiltin) return a.isBuiltin ? -1 : 1;
+    if (a.hasExternalHandler !== b.hasExternalHandler) return b.hasExternalHandler ? -1 : 1;
+    if (a.degraded !== b.degraded) return a.degraded ? 1 : -1;
+    return b.recentRate - a.recentRate;
+  });
+  entries.forEach((e, i) => { e.priority = i + 1; });
+  const fallbackOrder = getFallbackOrder('kg');
+  // 外置音源清单（独立列出，方便对照）
+  const externalSources = Object.keys(loadedExternal).map(key => ({
+    key,
+    name: (loadedExternal[key] && loadedExternal[key].name) || key,
+    scriptName: (loadedExternal[key] && loadedExternal[key].scriptName) || '',
+    actions: (loadedExternal[key] && loadedExternal[key].actions) || [],
+    isAlsoBuiltin: BUILTIN_SOURCES.includes(key),
+  }));
+  return {
+    sources: entries.reduce((acc, e) => { acc[e.key] = e; return acc; }, {}),
+    entries,                              // 有序数组，前端可直接用
+    externalSources,                      // 外置音源清单
+    externalCount: externalSources.length,
+    fallbackOrder,
+    degradedSources: entries.filter(e => e.degraded).map(e => e.key),
+    threshold: SOURCE_HEALTH_DEGRADE_THRESHOLD,
+    updatedAt: Date.now(),
+  };
+}
+
+// 定时持久化
+let sourceHealthPersistTimer = null;
+function startSourceHealthPersist() {
+  if (sourceHealthPersistTimer) clearInterval(sourceHealthPersistTimer);
+  sourceHealthPersistTimer = setInterval(persistSourceHealth, SOURCE_HEALTH_PERSIST_INTERVAL_MS);
+}
+process.on('exit', () => persistSourceHealth());
+process.on('SIGINT', () => { persistSourceHealth(); process.exit(); });
+process.on('SIGTERM', () => { persistSourceHealth(); process.exit(); });
+
+// 包装 getMusicUrl 自动记录统计
+const _internalGetMusicUrl = getMusicUrl;
+async function getMusicUrlTracked(source, musicInfo, quality) {
+  const start = Date.now();
+  try {
+    const url = await _internalGetMusicUrl(source, musicInfo, quality);
+    recordSourceRequest(source, true, Date.now() - start);
+    return url;
+  } catch (err) {
+    const reason = classifyError(err);
+    recordSourceRequest(source, false, Date.now() - start, reason);
+    throw err;
+  }
+}
 
 const updateDownloadJobs = new Map();
 
@@ -70,6 +292,7 @@ applySystemCertificateAuthorities();
 // 防止未处理的 Promise 拒绝导致进程退出
 process.on('unhandledRejection', (reason, promise) => {
   const msg = (reason && (reason.message || reason.stack || String(reason))) || 'unknown';
+  if (msg === '服务器异常' && getLoadedSources().kg) return;
   if (!String(msg).includes('lx-source-bridge')) {
     console.warn('[Server] Unhandled Rejection:', msg);
   }
@@ -1594,6 +1817,40 @@ function mapLXSong(source, item) {
   };
 }
 
+function scoreNativeSongMatch(song, targetName, targetArtist) {
+  const clean = (value) => String(value || '').toLowerCase()
+    .replace(/\(.*?\)|\[.*?\]|（.*?）|【.*?】/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+  const name = clean(song && song.name);
+  const artist = clean(song && song.artist);
+  const tn = clean(targetName);
+  const ta = clean(String(targetArtist || '').split(/[\/,、]/)[0]);
+  let score = 0;
+  if (name && tn) {
+    if (name === tn) score += 100;
+    else if (name.includes(tn) || tn.includes(name)) score += 55;
+  }
+  if (artist && ta) {
+    if (artist === ta) score += 50;
+    else if (artist.includes(ta) || ta.includes(artist)) score += 24;
+  }
+  return score;
+}
+
+function bestNativeSongMatch(songs, targetName, targetArtist) {
+  let best = null;
+  let bestScore = 0;
+  for (const song of songs || []) {
+    const score = scoreNativeSongMatch(song, targetName, targetArtist);
+    if (score > bestScore) {
+      bestScore = score;
+      best = song;
+    }
+  }
+  return best || (songs && songs[0]) || null;
+}
+
 function uniqueLXSongs(songs, limit) {
   const seen = new Set();
   const out = [];
@@ -1764,11 +2021,14 @@ function requestText(targetUrl, opts, body) {
   opts = opts || {};
   return new Promise((resolve, reject) => {
     const u = new URL(targetUrl);
-    const lib = u.protocol === 'https:' ? https : http;
-    const req = lib.request(u, {
+    const agent = resolveProxyAgent(targetUrl);
+    const requestOpts = {
       method: opts.method || 'GET',
       headers: opts.headers || {},
-    }, response => {
+    };
+    if (agent) requestOpts.agent = agent;
+    const lib = u.protocol === 'https:' ? https : http;
+    const req = lib.request(u, requestOpts, response => {
       const chunks = [];
       response.on('data', chunk => chunks.push(chunk));
       response.on('end', () => {
@@ -1783,7 +2043,8 @@ function requestText(targetUrl, opts, body) {
         resolve(text);
       });
     });
-    req.setTimeout(10000, () => req.destroy(new Error('Request timeout')));
+    var timeoutMs = Number.isFinite(opts.timeoutMs) ? opts.timeoutMs : 10000;
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('Request timeout')));
     req.on('error', reject);
     if (body) req.write(body);
     req.end();
@@ -1944,7 +2205,7 @@ async function resolveOpenMeteoLocation(query) {
   u.searchParams.set('count', '1');
   u.searchParams.set('language', 'zh');
   u.searchParams.set('format', 'json');
-  const body = await requestJson(u.toString(), { headers: { 'User-Agent': UA } });
+  const body = await requestJson(u.toString(), { headers: { 'User-Agent': UA }, timeoutMs: WEATHER_TIMEOUT_MS });
   const first = body && Array.isArray(body.results) && body.results[0];
   if (!first) return { ...WEATHER_DEFAULT_LOCATION, query: raw, fallback: true };
   return {
@@ -1983,11 +2244,11 @@ async function searchOpenMeteoLocations(query, count) {
     });
   }
   // 优先全球搜索（无 language 参数，国际城市排名更准）
-  var body = await requestJson(buildUrl(''), { headers: { 'User-Agent': UA } });
+  var body = await requestJson(buildUrl(''), { headers: { 'User-Agent': UA }, timeoutMs: WEATHER_TIMEOUT_MS });
   var results = body && Array.isArray(body.results) ? body.results : [];
   // CJK 回退：中文/日文/韩文输入在无 language 时可能返回空，补一次 zh 搜索
   if (!results.length && /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(raw)) {
-    var bodyZh = await requestJson(buildUrl('zh'), { headers: { 'User-Agent': UA } });
+    var bodyZh = await requestJson(buildUrl('zh'), { headers: { 'User-Agent': UA }, timeoutMs: WEATHER_TIMEOUT_MS });
     results = bodyZh && Array.isArray(bodyZh.results) ? bodyZh.results : [];
   }
   var mapped = mapResults(results);
@@ -2023,7 +2284,7 @@ async function fetchOpenMeteoWeather(params) {
   u.searchParams.set('hourly', 'precipitation_probability,weather_code,temperature_2m');
   u.searchParams.set('forecast_days', '1');
   u.searchParams.set('timezone', location.timezone || 'auto');
-  const body = await requestJson(u.toString(), { headers: { 'User-Agent': UA } });
+  const body = await requestJson(u.toString(), { headers: { 'User-Agent': UA }, timeoutMs: WEATHER_TIMEOUT_MS });
   const cur = body && body.current || {};
   const weather = {
     provider: 'open-meteo',
@@ -2054,29 +2315,55 @@ async function fetchOpenMeteoWeather(params) {
 }
 
 async function fetchIpWeatherLocation(clientIp) {
-  var ipUrl = WEATHER_IP_LOCATION_URL;
-  if (clientIp && typeof clientIp === 'string' && clientIp.trim()) {
-    ipUrl = WEATHER_IP_LOCATION_URL + encodeURIComponent(clientIp.trim());
+  // 主源：ip-api.com（带 5s 超时）
+  try {
+    var ipUrl = WEATHER_IP_LOCATION_URL;
+    if (clientIp && typeof clientIp === 'string' && clientIp.trim()) {
+      ipUrl = WEATHER_IP_LOCATION_URL + encodeURIComponent(clientIp.trim());
+    }
+    const u = new URL(ipUrl);
+    u.searchParams.set('fields', 'status,message,country,regionName,city,lat,lon,timezone,query');
+    u.searchParams.set('lang', 'zh-CN');
+    const body = await requestJson(u.toString(), { headers: { 'User-Agent': UA }, timeoutMs: WEATHER_TIMEOUT_MS });
+    if (body && body.status === 'success' && Number.isFinite(Number(body.lat)) && Number.isFinite(Number(body.lon))) {
+      return {
+        provider: 'ip-api',
+        city: body.city || WEATHER_DEFAULT_LOCATION.name,
+        region: body.regionName || '',
+        country: body.country || '',
+        latitude: Number(body.lat),
+        longitude: Number(body.lon),
+        timezone: body.timezone || 'auto',
+        ip: body.query || '',
+      };
+    }
+    console.warn('[WeatherIpLocation] ip-api returned invalid data, trying pconline fallback');
+  } catch (e) {
+    console.warn('[WeatherIpLocation] ip-api failed, trying pconline fallback:', e.message);
   }
-  const u = new URL(ipUrl);
-  u.searchParams.set('fields', 'status,message,country,regionName,city,lat,lon,timezone,query');
-  u.searchParams.set('lang', 'zh-CN');
-  const body = await requestJson(u.toString(), { headers: { 'User-Agent': UA } });
-  if (!body || body.status !== 'success' || !Number.isFinite(Number(body.lat)) || !Number.isFinite(Number(body.lon))) {
-    const err = new Error(body && body.message || 'IP_LOCATION_FAILED');
-    err.body = body;
+  // 兜底源：pconline.com.cn 国内 IP 归属地（免费，无 Key，国内直连）
+  try {
+    const pcBody = await requestJson(PCONLINE_IP_URL, { headers: { 'User-Agent': UA }, timeoutMs: WEATHER_TIMEOUT_MS });
+    const city = (pcBody && pcBody.city) || '';
+    if (!city) throw new Error('PCONLINE_NO_CITY');
+    // pconline 只返回省市区文字，用 resolveOpenMeteoLocation 转经纬度
+    const geoLocation = await resolveOpenMeteoLocation(city);
+    return {
+      provider: 'pconline',
+      city: geoLocation.name || city,
+      region: (pcBody && pcBody.pro) || '',
+      country: '中国',
+      latitude: geoLocation.latitude,
+      longitude: geoLocation.longitude,
+      timezone: geoLocation.timezone || 'auto',
+      ip: (pcBody && pcBody.ip) || '',
+    };
+  } catch (e2) {
+    console.warn('[WeatherIpLocation] pconline fallback also failed:', e2.message);
+    var err = new Error('ALL_IP_LOCATION_FAILED');
+    err.cause = e2;
     throw err;
   }
-  return {
-    provider: 'ip-api',
-    city: body.city || WEATHER_DEFAULT_LOCATION.name,
-    region: body.regionName || '',
-    country: body.country || '',
-    latitude: Number(body.lat),
-    longitude: Number(body.lon),
-    timezone: body.timezone || 'auto',
-    ip: body.query || '',
-  };
 }
 
 function weatherRadioSeedQueries(mood) {
@@ -3077,7 +3364,7 @@ async function fetchMyPodcastItems(key, info, limit, offset) {
 async function handleSongUrl(id, loginInfo, qualityPreference) {
   console.log('[SongUrl] KG id:', id);
   try {
-    const lxUrl = await getMusicUrl('kg', { songmid: id, id: id }, qualityPreference || '320k');
+    const lxUrl = await getMusicUrlTracked('kg', { songmid: id, id: id }, qualityPreference || '320k');
     if (lxUrl && /^https?:/.test(lxUrl)) {
       return { url: lxUrl, trial: false, playable: true, level: 'standard', quality: 'KG', br: 320000 };
     }
@@ -3431,7 +3718,7 @@ const server = http.createServer(async (req, res) => {
       const sid = url.searchParams.get('id');
       const quality = url.searchParams.get('quality') || '320k';
       // 直接使用 KG/LX 音源获取 URL
-      const lxUrl = await getMusicUrl('kg', { songmid: sid, id: sid }, quality);
+      const lxUrl = await getMusicUrlTracked('kg', { songmid: sid, id: sid }, quality);
       if (lxUrl && /^https?:/.test(lxUrl)) {
         sendJSON(res, { url: lxUrl, playable: true, level: quality, quality: 'KG', br: 320000 });
       } else {
@@ -3501,14 +3788,21 @@ const server = http.createServer(async (req, res) => {
 
   // ---------- LX 音源列表 ----------
   if (pn === '/api/lx-sources') {
-    const sources = getLoadedSources();
+    const loadedSources = getLoadedSources();
+    const sources = loadedSources.kg ? { kg: loadedSources.kg } : {};
     sendJSON(res, {
       ok: true,
       count: Object.keys(sources).length,
       sources,
-      supportedPlatforms: ['kg', 'tx', 'wy'],
+      supportedPlatforms: ['kg'],
       qualityOptions: ['128k', '320k', 'flac', 'flac24bit'],
     });
+    return;
+  }
+
+  // ---------- 音源健康度 ----------
+  if (pn === '/api/source-health') {
+    sendJSON(res, { ok: true, ...getSourceHealthData() });
     return;
   }
 
@@ -3532,7 +3826,7 @@ const server = http.createServer(async (req, res) => {
   // ---------- LX 音源获取播放URL ----------
   if (pn === '/api/lx-song-url') {
     try {
-      const source = url.searchParams.get('source') || url.searchParams.get('platform') || 'kg';
+      const source = 'kg';
       const songId = url.searchParams.get('id') || url.searchParams.get('songmid') || '';
       const quality = url.searchParams.get('quality') || '320k';
       const songMid = url.searchParams.get('songmid') || url.searchParams.get('mid') || songId;
@@ -3549,7 +3843,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      const musicInfo = {
+      let musicInfo = {
         songmid: songMid,
         id: songId,
         copyrightId,
@@ -3565,7 +3859,25 @@ const server = http.createServer(async (req, res) => {
       };
 
       console.log('[LX SongUrl] 请求:', source, JSON.stringify(musicInfo), quality);
-      const songUrl = await getMusicUrl(source, musicInfo, lxQualityFromPlayback(quality));
+      let songUrl = '';
+      try {
+        songUrl = await getMusicUrlTracked(source, musicInfo, lxQualityFromPlayback(quality));
+      } catch (firstErr) {
+        if (name) {
+          const query = [name, artist && String(artist).split(/[\/,、]/)[0]].filter(Boolean).join(' ');
+          const matches = await searchKugou(query, 6);
+          const best = bestNativeSongMatch(matches, name, artist);
+          if (best && best.hash) {
+            musicInfo = { ...musicInfo, ...best, hash: best.hash, songmid: best.songmid || best.id || songMid, id: best.id || songId };
+            console.warn('[LX SongUrl] KG hash 缺失或失效，已重新匹配:', name, artist, musicInfo.hash);
+            songUrl = await getMusicUrlTracked(source, musicInfo, lxQualityFromPlayback(quality));
+          } else {
+            throw firstErr;
+          }
+        } else {
+          throw firstErr;
+        }
+      }
       sendJSON(res, {
         ok: true,
         source,
@@ -3681,6 +3993,10 @@ const server = http.createServer(async (req, res) => {
         source: body.source || body.provider || '',
         hash: body.hash || '',
         copyrightId: body.copyrightId || '',
+        albumId: body.albumId || '',
+        albumMid: body.albumMid || '',
+        mediaMid: body.mediaMid || body.strMediaMid || '',
+        musicrid: body.musicrid || '',
         type: body.type || '',
         addedAt: Date.now(),
       };
@@ -3754,6 +4070,10 @@ const server = http.createServer(async (req, res) => {
         source: body.source || body.provider || '',
         hash: body.hash || '',
         copyrightId: body.copyrightId || '',
+        albumId: body.albumId || '',
+        albumMid: body.albumMid || '',
+        mediaMid: body.mediaMid || body.strMediaMid || '',
+        musicrid: body.musicrid || '',
       };
       if (!songEntry.name) { sendJSON(res, { ok: false, error: 'Missing song info' }, 400); return; }
       const key = localSongKey(songEntry);
@@ -4102,24 +4422,7 @@ async function searchNeteaseAsLX(keywords, limit = 12) {
 
 async function searchLXMusic(source, keywords, limit) {
   const max = Math.max(1, Math.min(parseInt(limit || '18', 10) || 18, 50));
-  const src = String(source || 'all').toLowerCase();
-  if (src === 'kg') return uniqueLXSongs(await searchKugou(keywords, max), max);
-  if (src === 'tx' || src === 'qq') return uniqueLXSongs(await searchTencentAsLX(keywords, max), max);
-  if (src === 'wy' || src === 'netease') return uniqueLXSongs(await searchNeteaseAsLX(keywords, max), max);
-
-  const perSource = Math.max(6, Math.ceil(max / 3));
-  const tasks = [
-    searchKugou(keywords, perSource),
-    searchTencentAsLX(keywords, perSource),
-    searchNeteaseAsLX(keywords, perSource),
-  ];
-  const settled = await Promise.allSettled(tasks);
-  const merged = [];
-  settled.forEach((result, index) => {
-    if (result.status === 'fulfilled') merged.push(...result.value);
-    else console.warn('[LX Search] source failed', index, result.reason && result.reason.message);
-  });
-  return uniqueLXSongs(merged, max);
+  return uniqueLXSongs(await searchKugou(keywords, max), max);
 }
 
 const LX_SOURCE_DIR = process.env.LX_SOURCE_DIR || path.join(__dirname, '音源', '音源');
@@ -4137,6 +4440,10 @@ const LX_SOURCE_DIR = process.env.LX_SOURCE_DIR || path.join(__dirname, '音源'
     console.warn('[LX Source] 音源加载失败:', err.message);
   }
 })();
+
+// 音源健康度初始化（在音源加载完成后）
+initSourceHealth();
+startSourceHealthPersist();
 
 server.listen(PORT, HOST, () => {
   console.log('======================================================');

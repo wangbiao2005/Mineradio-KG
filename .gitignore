@@ -18,6 +18,8 @@ win-unpacked/
 # User data and private state
 .cookie
 .qq-cookie
+source-health.json
+user-sources/
 
 # Backup directories
 音源/音源/_disabled/
