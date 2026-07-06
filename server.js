@@ -1162,11 +1162,11 @@ async function downloadUpdateAssetWithMirrors(job) {
       try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch (_) {}
       ensureMirrorCanBeVerified(job, candidate);
       prepareUpdateJobAttempt(job, candidate, i, candidates.length);
-      job.message = job.total ? '正在下载完整安装包' : '正在下载完整安装包，等待服务器返回大小';
+      job.message = job.total ? '正在下载完整安装包' : '试图连接线路 ' + (i + 1) + '/' + candidates.length + ' (' + (candidate.label || '下载线路') + ')…';
 
       const resp = await fetchWithTimeout(candidate.url, {
         headers: { 'User-Agent': `Mineradio/${APP_VERSION}` },
-      }, 14000);
+      }, 45000);
       if (!resp.ok) throw updateError('HTTP_' + resp.status, 'HTTP ' + resp.status);
 
       const totalHeader = parseInt(resp.headers.get('content-length') || '0', 10) || 0;
@@ -1175,6 +1175,7 @@ async function downloadUpdateAssetWithMirrors(job) {
       job.updatedAt = Date.now();
       let speedWindowAt = Date.now();
       let speedWindowBytes = 0;
+      let lastDataTime = Date.now();
 
       const writer = fs.createWriteStream(tmpPath);
       const reader = resp.body.getReader();
@@ -1182,6 +1183,7 @@ async function downloadUpdateAssetWithMirrors(job) {
         while (true) {
           const chunk = await reader.read();
           if (chunk.done) break;
+          lastDataTime = Date.now();
           const buf = Buffer.from(chunk.value);
           job.received += buf.length;
           speedWindowBytes += buf.length;
@@ -1191,6 +1193,7 @@ async function downloadUpdateAssetWithMirrors(job) {
             speedWindowAt = now;
             speedWindowBytes = 0;
           }
+          if (now - lastDataTime >= 20000) throw updateError('UPDATE_STALLED', '下载连接假死，20秒无新数据');
           if (job.total > 0) {
             job.progress = Math.max(1, Math.min(99, Math.round((job.received / job.total) * 100)));
             job.etaSeconds = job.speedBps > 0 ? Math.max(0, Math.round((job.total - job.received) / job.speedBps)) : 0;
@@ -1221,9 +1224,17 @@ async function downloadUpdateAssetWithMirrors(job) {
       const info = classifyUpdateError(err);
       failures.push({ source: candidate.label || '下载线路', reason: info.reason, detail: info.detail });
       job.failedAttempts = failures.slice(-6);
-      job.message = i < candidates.length - 1 ? ((candidate.label || '当前线路') + '失败，正在切换线路') : info.reason;
+      var shortLabel = candidate.label || '下载线路';
+      var remaining = candidates.length - i - 1;
+      if (remaining > 0) {
+        job.message = '线路 ' + (i + 1) + '/' + candidates.length + ' (' + shortLabel + '): ' + info.reason + '，切换下一条…';
+        job.errorReason = info.reason;
+        job.errorDetail = info.detail;
+      } else {
+        job.message = candidates.length + '条线路全部失败：' + info.reason;
+        setUpdateJobError(job, err, '下载失败：' + info.reason);
+      }
       job.updatedAt = Date.now();
-      if (i >= candidates.length - 1) setUpdateJobError(job, err, '下载失败：' + info.reason);
     }
   }
 }
@@ -1929,7 +1940,7 @@ async function requireLogin(res) {
 
 // KG 热搜关键词
 async function fetchKgHotSearch() {
-  const url = 'http://gateway.kugou.com/api/v3/search/hot_tab?signature=ee44edb9d7155821412d220bcaf509dd&appid=1005&clientver=10026&plat=0';
+  const url = 'https://gateway.kugou.com/api/v3/search/hot_tab?signature=ee44edb9d7155821412d220bcaf509dd&appid=1005&clientver=10026&plat=0';
   try {
     const json = await fetchJsonText(url, {
       headers: {
@@ -3140,6 +3151,148 @@ async function handleQQSongComments(id, mid, limit, offset) {
   return { provider: 'qq', id: topid, total, comments, hot: !!(offset === 0 && Array.isArray(hotList) && hotList.length) };
 }
 
+function mapKugouComment(raw) {
+  raw = raw || {};
+  const user = raw.user || raw.userinfo || raw.u || raw.author || {};
+  const content = raw.pcontent || raw.content || raw.comment || raw.comment_content || raw.rootcommentcontent || raw.msg || raw.text || '';
+  const timeValue = raw.addtimestamp ? Number(raw.addtimestamp) * 1000 : Date.parse(raw.addtime || raw.time || raw.create_time || raw.commenttime || raw.ctime || raw.createTime || '');
+  const timeRaw = Number.isFinite(timeValue) ? timeValue : 0;
+  const nickname = raw.puser || raw.user_name || raw.nickname || raw.nick || raw.username || user.nickname || user.nick || user.username || user.name || '酷狗用户';
+  const avatar = raw.user_pic || raw.avatar || raw.avatarurl || raw.pic || user.avatar || user.avatarurl || user.pic || '';
+  return {
+    id: raw.id || raw.commentid || raw.commentId || raw.comment_id || '',
+    content: decodeHtmlEntities(content),
+    likedCount: Number(raw.like && raw.like.likenum || raw.likedCount || raw.like_count || raw.likeCount || raw.praisenum || raw.support || raw.agree || 0) || 0,
+    time: timeRaw && timeRaw < 10000000000 ? timeRaw * 1000 : timeRaw,
+    user: {
+      id: raw.puser_id || raw.user_id || raw.userid || raw.uid || user.userid || user.user_id || user.uid || '',
+      nickname,
+      avatar,
+    },
+  };
+}
+
+function firstKugouCommentList(body) {
+  const boxes = [
+    body && body.data && body.data.list,
+    body && body.data && body.data.comments,
+    body && body.data && body.data.info,
+    body && body.data && body.data.rows,
+    body && body.list,
+    body && body.comments,
+    body && body.info,
+    body && body.rows,
+  ];
+  for (const box of boxes) {
+    if (Array.isArray(box)) return box;
+  }
+  return [];
+}
+
+function kugouCommentTotal(body, comments) {
+  return Number(
+    body && body.data && (body.data.total || body.data.count || body.data.comment_total || body.data.commenttotal) ||
+    body && (body.total || body.count || body.comment_total || body.commenttotal)
+  ) || (comments || []).length;
+}
+
+function looksLikeKgHash(value) {
+  return /^[a-f0-9]{32}$/i.test(String(value || '').trim());
+}
+
+async function resolveKugouCommentKeys(id, hash, name, artist) {
+  let kgHash = String(hash || '').trim();
+  let audioId = String(id || '').trim();
+  if (!kgHash && looksLikeKgHash(audioId)) {
+    kgHash = audioId;
+    audioId = '';
+  }
+  if ((!kgHash || !audioId) && name) {
+    const query = [name, artist && String(artist).split(/[\/,、&]/)[0]].filter(Boolean).join(' ');
+    try {
+      const matches = await searchKugou(query, 6);
+      const best = bestNativeSongMatch(matches, name, artist) || matches[0];
+      if (best) {
+        kgHash = kgHash || best.hash || '';
+        audioId = audioId || best.id || best.songmid || '';
+      }
+    } catch (err) {
+      console.warn('[KGComments] search fallback failed:', err.message);
+    }
+  }
+  return { kgHash, audioId };
+}
+
+async function tryKugouCommentUrl(apiUrl) {
+  try {
+    const body = await fetchJsonText(apiUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 Mobile Safari/537.36',
+        Referer: 'https://www.kugou.com/',
+      },
+    });
+    if (!body || body.status === 0 || body.err_code) return null;
+    const comments = firstKugouCommentList(body).map(mapKugouComment).filter(c => c.content);
+    return { body, comments };
+  } catch (err) {
+    console.warn('[KGComments] endpoint failed:', err.message);
+    return null;
+  }
+}
+
+function kugouSignatureParams(params, platform = 'android', body = '') {
+  const key = platform === 'web' ? 'NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt' : 'OIlwieks28dk2k092lksi2UIkp';
+  const sorted = String(params || '').split('&').sort().join('');
+  return crypto.createHash('md5').update(`${key}${sorted}${body}${key}`).digest('hex');
+}
+
+function buildKugouCommentUrl(rankType, hash, page, limit) {
+  const timestamp = Date.now();
+  const params = [
+    'dfid=0',
+    'mid=16249512204336365674023395779019',
+    `clienttime=${timestamp}`,
+    'uuid=0',
+    `extdata=${encodeURIComponent(hash)}`,
+    'appid=1005',
+    'code=fc4be23b4e972707f36b8a828a93ba8a',
+    `schash=${encodeURIComponent(hash)}`,
+    'clientver=11409',
+    `p=${page}`,
+    'clienttoken=',
+    `pagesize=${limit}`,
+    'ver=10',
+    'kugouid=0',
+  ].join('&');
+  return `https://m.comment.service.kugou.com/r/v1/rank/${rankType}?${params}&signature=${kugouSignatureParams(params)}`;
+}
+
+async function handleKugouSongComments(params) {
+  params = params || {};
+  const limit = Math.max(1, Math.min(Number(params.limit) || 18, 50));
+  const offset = Math.max(0, Number(params.offset) || 0);
+  const page = Math.floor(offset / limit) + 1;
+  const { kgHash, audioId } = await resolveKugouCommentKeys(params.id, params.hash, params.name, params.artist);
+  const candidates = kgHash
+    ? [buildKugouCommentUrl('topliked', kgHash, page, limit), buildKugouCommentUrl('newest', kgHash, page, limit)]
+    : [];
+
+  for (const apiUrl of candidates) {
+    const result = await tryKugouCommentUrl(apiUrl);
+    if (result && result.comments.length) {
+      return {
+        provider: 'kg',
+        id: audioId || kgHash,
+        hash: kgHash,
+        total: kugouCommentTotal(result.body, result.comments),
+        comments: result.comments,
+      };
+    }
+  }
+
+  return { provider: 'kg', id: audioId || kgHash, hash: kgHash, total: 0, comments: [] };
+}
+
 function decodeHtmlEntities(text) {
   return String(text || '')
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
@@ -3732,6 +3885,24 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ---------- 封面代理 (带 CORS 头, 给 canvas 提取像素用) ----------
+  if (pn === '/api/song/comments') {
+    try {
+      const data = await handleKugouSongComments({
+        id: url.searchParams.get('id') || '',
+        hash: url.searchParams.get('hash') || '',
+        name: url.searchParams.get('name') || '',
+        artist: url.searchParams.get('artist') || '',
+        limit: parseInt(url.searchParams.get('limit') || '18', 10),
+        offset: parseInt(url.searchParams.get('offset') || '0', 10),
+      });
+      sendJSON(res, { ok: true, ...data });
+    } catch (err) {
+      console.warn('[KGComments]', err.message);
+      sendJSON(res, { ok: true, provider: 'kg', total: 0, comments: [] });
+    }
+    return;
+  }
+
   if (pn === '/api/cover') {
     try {
       const coverUrl = url.searchParams.get('url');

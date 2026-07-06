@@ -380,3 +380,28 @@
 - 涉及文件：`docs/QQ_MUSIC_INTERFACE_NOTES.md`、`server.js`、`desktop/main.js`、`public/index.html`。
 - 关键参数/实现：区分网页账号态 `p_skey` 和播放票据 `qm_keyst`/`qqmusic_key`/`music_key`/`wxskey`；`/api/qq/login/status` 返回 `playbackKeyReady`；缺播放票据时 `104003` 归类为 `login_required`；昵称头像用 `ptnick_*` 和 `qlogo.cn` 兜底。
 - 禁止回退或改坏的点：不要再把 `p_skey` 当作完整 QQ 音乐播放授权；不要因为 QQ 资料接口 `code:1000` 就清空头像/昵称或标记未登录；修 QQ 播放前先读 `docs/QQ_MUSIC_INTERFACE_NOTES.md`。
+
+### 2026-06-28 - 播放页面全屏覆盖层点击失效修复
+
+- 根因：`#visual-guide`(z-index:620) 和 `scheduleDiscoveryHints` 的 3000ms 定时器在播放中弹出，全屏覆盖层 `pointer-events:auto` 吞噬所有点击。
+- 修复措施（多层保护）：
+  1. `maybeRunStartupVisualGuide` 回调添加 `if (playing) return`
+  2. `startVisualGuide` 入口添加 `if (playing && !manual) return`
+  3. `scheduleDiscoveryHints` / `showDiscoveryHint` 首行添加 `if (playing) return`
+  4. `playQueueAt` 中添加 `closeVisualGuide(false)` + `cancelDiscoveryHints()`
+- 涉及文件：`public/index.html`
+- 禁止回退：不要再恢复无播放状态检查的覆盖层弹窗逻辑
+
+### 2026-06-28 - 酷狗 API HTTPS 协议强制
+
+- 根因：酷狗热搜接口 `gateway.kugou.com` 和评论接口 `m.comment.service.kugou.com` 使用 `http://` 导致请求失败
+- 修复：两接口统一改为 `https://`，恢复每日推荐实时热搜词动态变化
+- 涉及文件：`server.js`
+- 禁止回退：KG 接口不要再使用 `http://` 协议
+
+### 2026-06-28 - 酷狗歌曲评论功能上线
+
+- 后端新增 `handleKugouSongComments` / `buildKugouCommentUrl` / `kugouSignatureParams` / `mapKugouComment` 等全套评论系统
+- 前端 `openTrackDetailModal` 加载歌曲评论，`renderDetailComments` 渲染评论列表
+- 涉及文件：`server.js`、`public/index.html`
+- 注意：当前仅支持 KG 评论，QQ 评论代码为残留死代码（项目已纯 KG）
