@@ -4285,6 +4285,58 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ==================== 在线歌单导入 API ====================
+
+  // 1. 平台识别 + 歌单ID提取
+  if (pn === '/api/playlist/parse-link') {
+    try {
+      const body = req.method === 'POST' ? await readBody(req) : Object.fromEntries(url.searchParams);
+      const text = String(body.link || body.text || '').trim();
+      if (!text) { sendJSON(res, { ok: false, error: '请输入链接或分享文本', platform: null, id: null }); return; }
+      const result = parsePlaylistLink(text);
+      sendJSON(res, { ok: true, ...result });
+    } catch (err) {
+      sendJSON(res, { ok: false, error: err.message, platform: null, id: null });
+    }
+    return;
+  }
+
+  // 2. 获取歌单详情
+  if (pn === '/api/playlist/fetch') {
+    try {
+      const body = req.method === 'POST' ? await readBody(req) : Object.fromEntries(url.searchParams);
+      const platform = String(body.platform || '').toLowerCase();
+      const id = String(body.id || '');
+      if (!platform || !id) { sendJSON(res, { ok: false, error: 'Missing platform or id' }, 400); return; }
+      const detail = await fetchPlaylistDetail(platform, id);
+      sendJSON(res, { ok: true, ...detail });
+    } catch (err) {
+      console.error('[Playlist Fetch]', err.message);
+      sendJSON(res, { ok: false, error: err.message }, 500);
+    }
+    return;
+  }
+
+  // 3. 匹配歌单歌曲到KG (分步返回进度，复用.lxmc匹配逻辑)
+  if (pn === '/api/playlist/match') {
+    try {
+      const body = req.method === 'POST' ? await readBody(req) : Object.fromEntries(url.searchParams);
+      let songs;
+      try {
+        songs = typeof body.songs === 'string' ? JSON.parse(body.songs) : body.songs;
+      } catch (e) { sendJSON(res, { ok: false, error: 'Invalid songs JSON' }, 400); return; }
+      if (!Array.isArray(songs) || !songs.length) { sendJSON(res, { ok: false, error: 'No songs to match' }, 400); return; }
+      const result = await matchSongsToKGOnline(songs);
+      sendJSON(res, { ok: true, ...result });
+    } catch (err) {
+      console.error('[Playlist Match]', err.message);
+      sendJSON(res, { ok: false, error: err.message }, 500);
+    }
+    return;
+  }
+
+  // ==================== 在线歌单导入 API END ====================
+
   let filePath = pn === '/' ? '/index.html' : pn;
   filePath = path.join(__dirname, 'public', filePath);
   serveStatic(res, filePath);
@@ -4595,6 +4647,307 @@ async function searchLXMusic(source, keywords, limit) {
   const max = Math.max(1, Math.min(parseInt(limit || '18', 10) || 18, 50));
   return uniqueLXSongs(await searchKugou(keywords, max), max);
 }
+
+// ==================== 在线歌单导入：平台识别与详情获取 ====================
+
+// ---------- 链接解析正则 ----------
+const PLAYLIST_LINK_REGEX = {
+  wy: [
+    /music\.163\.com\/playlist\/(\d+)/i,
+    /music\.163\.com.*[?&]id=(\d+)/i,
+  ],
+  tx: [
+    /y\.qq\.com\/n\/.*playlist\/(\d+)/i,
+    /i\d*\.y\.qq\.com.*[?&]id=(\d+)/i,
+    /y\.qq\.com\/playsquare\/(\d+)/i,
+  ],
+  kg: [
+    /kugou\.com\/yy\/special\/single\/(\d+)/i,
+    /kugou\.com\/songlist\/[?&]?(?:.*&)?id=(\d+)/i,
+    /t\.kugou\.com\/(\w{5,})/i,
+    /chain=(\w+)/i,
+    /global_collection_id=(\w+)/i,
+    /kugou\.com\/share\/(\w{5,})/i,
+  ],
+  qs: [
+    /douyin\.com/i, /qishui\.com/i, /music\.qishui\.com/i, /汽水/i,
+  ],
+};
+
+const PLATFORM_LABELS = { wy: '网易云音乐', tx: 'QQ音乐', kg: '酷狗音乐', qs: '汽水音乐' };
+const PLATFORM_COLORS = { wy: '#ec4141', tx: '#31c27c', kg: '#f5ba2e', qs: '#ff4d4f' };
+
+function parsePlaylistLink(text) {
+  const t = String(text || '').trim();
+  if (!t) return { platform: null, id: null, label: '', color: '', error: '输入为空' };
+
+  // 汽水音乐先拦截
+  for (const re of PLAYLIST_LINK_REGEX.qs) {
+    if (re.test(t)) {
+      return { platform: 'qs', id: null, label: '汽水音乐', color: PLATFORM_COLORS.qs, error: '暂不支持汽水音乐' };
+    }
+  }
+
+  // 按 wy → tx → kg 顺序识别
+  const order = ['wy', 'tx', 'kg'];
+  for (const platform of order) {
+    for (const re of PLAYLIST_LINK_REGEX[platform]) {
+      const m = t.match(re);
+      if (m && m[1]) {
+        return {
+          platform,
+          id: m[1],
+          label: PLATFORM_LABELS[platform],
+          color: PLATFORM_COLORS[platform],
+          error: null,
+        };
+      }
+    }
+  }
+
+  return { platform: null, id: null, label: '', color: '', error: '无法识别，请检查链接格式' };
+}
+
+// ---------- 网易云歌单详情 ----------
+async function fetchWyPlaylistDetail(id) {
+  const apiUrl = `https://music.163.com/api/v3/playlist/detail?id=${encodeURIComponent(id)}&n=100000`;
+  const resp = await fetchWithTimeout(apiUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', Referer: 'https://music.163.com/' },
+  }, 15000);
+  if (!resp.ok) throw new Error('网易云API请求失败 HTTP ' + resp.status);
+  const json = await resp.json();
+  if (json.code !== 200 || !json.playlist) throw new Error('网易云返回异常: code=' + json.code);
+  const pl = json.playlist;
+
+  // tracks 字段可能被截断为预览（仅前10首），完整列表在 trackIds 中
+  const tracks = pl.tracks || [];
+  const trackIds = (pl.trackIds || []).map(t => t.id).filter(Boolean);
+
+  // 如果 trackIds 比 tracks 多，说明被截断了，用批量查详情补全
+  let songDetails;
+  if (trackIds.length > tracks.length) {
+    songDetails = await fetchWySongDetailBatch(trackIds);
+  } else {
+    songDetails = tracks;
+  }
+
+  const songs = songDetails.map(track => ({
+    name: String(track.name || '').trim(),
+    artist: Array.isArray(track.ar) ? track.ar.map(a => a.name).join(' / ') : '',
+    album: (track.al && track.al.name) || '',
+    duration: Math.round((track.dt || 0) / 1000),
+  })).filter(s => s.name);
+  if (!songs.length) throw new Error('歌单内无歌曲');
+  return {
+    name: pl.name || '网易云歌单',
+    cover: pl.coverImgUrl || '',
+    total: songs.length,
+    songs,
+  };
+}
+
+// ---------- 网易云批量歌曲详情（解决 tracks 预览截断） ----------
+async function fetchWySongDetailBatch(ids) {
+  const BATCH_SIZE = 500;
+  const results = [];
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const batch = ids.slice(i, i + BATCH_SIZE);
+    const c = JSON.stringify(batch.map(id => ({ id })));
+    const detailUrl = `https://music.163.com/api/v3/song/detail?c=${encodeURIComponent(c)}`;
+    const resp = await fetchWithTimeout(detailUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', Referer: 'https://music.163.com/' },
+    }, 15000);
+    if (!resp.ok) throw new Error('网易云歌曲详情请求失败 HTTP ' + resp.status);
+    const json = await resp.json();
+    if (json.code === 200 && Array.isArray(json.songs)) {
+      for (const s of json.songs) results.push(s);
+    }
+  }
+  if (!results.length) throw new Error('无法获取歌曲详情');
+  return results;
+}
+
+// ---------- QQ音乐歌单详情 ----------
+async function fetchTxPlaylistDetail(id) {
+  const apiUrl = `https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=${encodeURIComponent(id)}&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0`;
+  const resp = await fetchWithTimeout(apiUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', Referer: 'https://y.qq.com/' },
+  }, 15000);
+  if (!resp.ok) throw new Error('QQ音乐API请求失败 HTTP ' + resp.status);
+  const json = await resp.json();
+  if (json.code !== 0 || !json.cdlist || !json.cdlist.length) throw new Error('QQ音乐返回异常: code=' + json.code);
+  const cd = json.cdlist[0];
+  const songs = (cd.songlist || []).map(track => ({
+    name: String(track.title || track.songname || '').trim(),
+    artist: Array.isArray(track.singer) ? track.singer.map(s => s.name).join(' / ') : '',
+    album: (track.album && track.album.name) || '',
+    duration: parseInt(track.interval) || 0,
+  })).filter(s => s.name);
+  if (!songs.length) throw new Error('歌单内无歌曲');
+  return {
+    name: cd.dissname || 'QQ音乐歌单',
+    cover: cd.logo || '',
+    total: songs.length,
+    songs,
+  };
+}
+
+// ---------- 酷狗歌单详情 ----------
+async function fetchKgPlaylistDetail(id) {
+  // 酷狗 special id 方式：HTML页面内嵌全局数据 (仅支持 HTTP，HTTPS 会 SSL 错误)
+  const pageUrl = `http://www2.kugou.kugou.com/yueku/v9/special/single/${encodeURIComponent(id)}-5-9999.html`;
+  const resp = await fetchWithTimeout(pageUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+  }, 12000);
+  if (!resp.ok) throw new Error('酷狗页面请求失败 HTTP ' + resp.status);
+  const html = await resp.text();
+
+  // 解析 global = { name, pic, id ... } 和 global.data = [...]
+  // global.data 中每个元素本身就有 songname / singername / duration / album_name
+  // 注意: 数组内嵌套子数组，不能用简单正则匹配，改用括号计数法
+  const dataIdx = html.indexOf('global.data');
+  if (dataIdx === -1) throw new Error('无法解析酷狗歌单数据 global.data');
+  const eqIdx = html.indexOf('=', dataIdx);
+  if (eqIdx === -1) throw new Error('无法解析酷狗歌单数据');
+  const lbIdx = html.indexOf('[', eqIdx);
+  if (lbIdx === -1) throw new Error('无法解析酷狗歌单数据');
+  let depth = 0, rbIdx = -1;
+  for (let i = lbIdx; i < html.length; i++) {
+    if (html[i] === '[') depth++;
+    else if (html[i] === ']') { depth--; if (depth === 0) { rbIdx = i; break; } }
+  }
+  if (rbIdx === -1) throw new Error('无法解析酷狗歌单数据');
+  let rawList;
+  try {
+    rawList = JSON.parse(html.substring(lbIdx, rbIdx + 1));
+  } catch (e) {
+    throw new Error('酷狗数据JSON解析失败');
+  }
+  if (!Array.isArray(rawList) || !rawList.length) throw new Error('歌单内无歌曲');
+
+  // 直接从 global.data 提取歌曲信息，无需二次查询
+  const songs = rawList.slice(0, 500).map(item => ({
+    name: String(item.songname || '').trim(),
+    artist: String(item.singername || '').trim(),
+    album: String(item.album_name || '').trim(),
+    duration: Math.round(parseInt(item.duration || '0') / 1000),
+  })).filter(s => s.name);
+  if (!songs.length) throw new Error('歌单内无有效歌曲');
+
+  // 解析歌单名称 (global.name) 和封面 (global.pic)
+  const nameMatch = html.match(/global\s*=\s*\{[\s\S]*?name:\s*"([^"]+)"/);
+  const listName = nameMatch ? nameMatch[1] : '酷狗歌单';
+  const picMatch = html.match(/global\s*=\s*\{[\s\S]*?pic:\s*"([^"]+)"/);
+  const cover = picMatch ? picMatch[1] : '';
+
+  return {
+    name: listName,
+    cover,
+    total: songs.length,
+    songs,
+  };
+}
+
+// ---------- 酷狗 chain / global_collection_id 解析（短链先还原出数字 specialid） ----------
+async function fetchKgChainPlaylistDetail(chainId) {
+  // chain 页面内嵌 `global = { specialid: 636158, ... }`，提取后走 normal 流程
+  const shareUrl = `http://m.kugou.com/share/song.html?chain=${encodeURIComponent(chainId)}`;
+  const resp = await fetchWithTimeout(shareUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 Mobile',
+      'Accept': 'text/html,application/xhtml+xml',
+      'Referer': 'https://www.kugou.com/',
+    },
+  }, 12000);
+  if (!resp.ok) throw new Error('酷狗分享页请求失败 HTTP ' + resp.status);
+  const html = await resp.text();
+
+  // 提取 specialid（数字）
+  const specialMatch = html.match(/"specialid"\s*:\s*(\d+)/);
+  if (!specialMatch) throw new Error('无法从分享页解析 specialid');
+  const specialid = specialMatch[1];
+
+  // 用解析出的 numeric specialid 走正常酷狗歌单流程
+  return fetchKgPlaylistDetail(specialid);
+}
+
+
+// ---------- 统一歌单详情获取入口 ----------
+async function fetchPlaylistDetail(platform, id) {
+  switch (platform) {
+    case 'wy': return fetchWyPlaylistDetail(id);
+    case 'tx': return fetchTxPlaylistDetail(id);
+    case 'kg':
+      // 酷狗数字 special ID 直接查；chain / global_collection_id 等非数字 ID 先解析
+      if (/^\d+$/.test(id)) return fetchKgPlaylistDetail(id);
+      return fetchKgChainPlaylistDetail(id);
+    default: throw new Error('不支持的平台: ' + platform);
+  }
+}
+
+// ---------- 歌曲列表匹配KG (复用现有 searchKugou + 前端 findBestKGMatch 逻辑) ----------
+async function matchSongsToKGOnline(songs) {
+  const CONCURRENCY = 5;
+  const matched = [];
+  const lowConf = [];
+  const notFound = [];
+
+  // 与前端 findBestKGMatch 完全一致的评分逻辑
+  function bestKGMatch(results, targetName, targetArtist) {
+    var best = null, bestScore = 0;
+    var normalize = function(text) {
+      return String(text || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').replace(/\s+/g, '').trim();
+    };
+    var firstArtist = function(text) {
+      return normalize(String(text || '').split(/[/,、]/)[0] || text);
+    };
+    var tName = normalize(targetName);
+    var tArtist = firstArtist(targetArtist);
+    for (var i = 0; i < results.length; i++) {
+      var s = results[i]; if (!s || !s.name) continue;
+      var sName = normalize(s.name);
+      var sArtist = firstArtist(s.artist || s.singer || '');
+      var score = 0;
+      if (sName === tName) score += 100;
+      else if (sName && tName && (sName.includes(tName) || tName.includes(sName))) score += 55;
+      if (tArtist && sArtist) { if (sArtist === tArtist) score += 55; else if (sArtist.includes(tArtist) || tArtist.includes(sArtist)) score += 22; }
+      if (score > bestScore) { bestScore = score; best = s; }
+    }
+    if (bestScore >= 80) return { song: best, score: bestScore, conf: 'high' };
+    if (bestScore >= 50) return { song: best, score: bestScore, conf: 'low' };
+    return null;
+  }
+
+  async function matchOne(song) {
+    try {
+      var keywords = song.name + ' ' + (song.artist || '');
+      var results = await searchKugou(keywords, 8);
+      if (!Array.isArray(results) || !results.length) return null;
+      return bestKGMatch(results, song.name, song.artist || '');
+    } catch (e) { return null; }
+  }
+
+  for (var b = 0; b < songs.length; b += CONCURRENCY) {
+    var batchEnd = Math.min(b + CONCURRENCY, songs.length);
+    var batch = songs.slice(b, batchEnd);
+    var results = await Promise.all(batch.map(s => matchOne(s)));
+    for (var r = 0; r < results.length; r++) {
+      var orig = batch[r];
+      var match = results[r];
+      if (match && match.conf === 'high') {
+        matched.push({ original: orig, matched: match.song });
+      } else if (match && match.conf === 'low') {
+        lowConf.push({ original: orig, matched: match.song });
+      } else {
+        notFound.push(orig);
+      }
+    }
+  }
+
+  return { matched, lowConfidence: lowConf, notFound, total: songs.length };
+}
+
+// ==================== 在线歌单导入 END ====================
 
 const LX_SOURCE_DIR = process.env.LX_SOURCE_DIR || path.join(__dirname, '音源', '音源');
 (async () => {
