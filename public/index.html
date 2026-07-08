@@ -259,6 +259,23 @@ body.home-wallpaper-preview #canvas-container{filter:none}
 .home-hero::after{content:'';position:absolute;left:28px;right:28px;bottom:22px;height:1px;background:linear-gradient(90deg,color-mix(in srgb,var(--home-accent) 0%,transparent),color-mix(in srgb,var(--home-accent) 52%,transparent),rgba(36,66,255,.24),rgba(248,244,238,.18),color-mix(in srgb,var(--home-accent) 0%,transparent));opacity:.82;pointer-events:none}
 .home-hero-inner{position:relative;z-index:2;height:100%;display:grid;grid-template-columns:minmax(0,1.16fr) minmax(150px,.64fr);grid-template-rows:1fr;column-gap:18px}
 .home-hero-inner.home-construction-inner{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:18px;padding:4px 2px;min-height:100%}
+.home-mood-glow{position:absolute;z-index:1;pointer-events:none;border-radius:50%;width:300px;height:300px;transition:background .8s ease,opacity .8s ease;opacity:0}
+.home-mood-glow--bl{left:2%;bottom:8%}
+.home-mood-glow--tr{right:2%;top:8%}
+/* 中性兜底 — 天气数据无效/加载中 */
+.home-mood-glow.glow-neutral{opacity:.14}
+.home-mood-glow--bl.glow-neutral{background:radial-gradient(circle at center,rgba(140,150,168,.07) 0%,rgba(140,150,168,.015) 42%,transparent 72%)}
+.home-mood-glow--tr.glow-neutral{background:radial-gradient(circle at center,rgba(140,150,168,.07) 0%,rgba(140,150,168,.015) 42%,transparent 72%)}
+/* 暖色 — 晴天 clear */
+.home-mood-glow.glow-warm{opacity:.44}
+.home-mood-glow--bl.glow-warm{background:radial-gradient(circle at center,color-mix(in srgb,var(--home-accent) 40%,transparent) 0%,color-mix(in srgb,var(--home-accent) 9%,transparent) 42%,transparent 72%)}
+.home-mood-glow--tr.glow-warm{background:radial-gradient(circle at center,color-mix(in srgb,var(--home-accent) 40%,transparent) 0%,color-mix(in srgb,var(--home-accent) 9%,transparent) 42%,transparent 72%)}
+/* 冷色 — 雨/雪/阴/雾/潮湿/暴风 */
+.home-mood-glow.glow-cool{opacity:.40}
+.home-mood-glow--bl.glow-cool{background:radial-gradient(circle at center,rgba(100,148,200,.18) 0%,rgba(100,148,200,.05) 42%,transparent 72%)}
+.home-mood-glow--tr.glow-cool{background:radial-gradient(circle at center,rgba(100,148,200,.18) 0%,rgba(100,148,200,.05) 42%,transparent 72%)}
+/* 夜间减暗 — 叠加在暖色/冷色之上，必须放在后面以覆盖 opacity */
+.home-mood-glow.glow-night{opacity:.28}
 .home-kicker{grid-column:1;font-size:9.5px;font-weight:600;letter-spacing:.24em;color:rgba(255,255,255,.42);text-transform:uppercase}
 .home-kicker--greeting{margin-bottom:6px}
 .home-shelf-date{grid-column:1;display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
@@ -286,12 +303,22 @@ body.home-wallpaper-preview #canvas-container{filter:none}
 .home-console-chip--thin:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.16);color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.20)}
 .home-left-group{grid-column:1;grid-row:1;display:flex;flex-direction:column;min-height:0}
 .home-top-block{flex:0 0 auto}
-.home-weather-radio-prompt{display:none;align-items:center;gap:8px;margin-top:auto;margin-bottom:12px;padding:0;font-size:12px;color:rgba(255,255,255,.38);background:none;border:0;font-family:inherit;cursor:pointer;transition:color .24s;user-select:none;line-height:1.44;max-width:420px;text-align:left;width:100%}
+.home-weather-radio-prompt{display:none;align-items:center;gap:8px;margin-top:auto;margin-bottom:6px;padding:0;font-size:12px;color:rgba(255,255,255,.38);background:none;border:0;font-family:inherit;cursor:pointer;transition:color .24s;user-select:none;line-height:1.44;max-width:420px;text-align:left;width:100%}
 .home-weather-radio-prompt.show{display:flex}
 .home-weather-radio-prompt:hover{color:rgba(255,255,255,.68)}
 .home-weather-radio-prompt-text{flex:1;min-width:0}
 .home-weather-radio-prompt-arrow{flex-shrink:0;transition:transform .26s,opacity .26s;opacity:.48}
 .home-weather-radio-prompt:hover .home-weather-radio-prompt-arrow{transform:translateX(3px);opacity:.88}
+.home-weekly-card{display:flex;align-items:center;justify-content:space-between;margin-top:6px;margin-bottom:14px;padding:10px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.026);cursor:default;transition:border-color .24s,background .24s;user-select:none}
+.home-weekly-card.has-link{cursor:pointer}
+.home-weekly-card.has-link:hover{border-color:rgba(255,255,255,.14);background:rgba(255,255,255,.045)}
+.home-weekly-card-left{display:flex;flex-direction:column;gap:2px;min-width:0}
+.home-weekly-card-label{font-size:9.5px;color:rgba(255,255,255,.32);font-weight:500;letter-spacing:.08em;text-transform:uppercase}
+.home-weekly-card-value{font-size:18px;font-weight:680;color:rgba(255,255,255,.78);line-height:1.15;letter-spacing:-.01em;display:flex;align-items:baseline;gap:10px}
+.home-weekly-card-num{font-size:24px;font-weight:720;color:rgba(255,255,255,.88);line-height:1.1;letter-spacing:-.01em}
+.home-weekly-card-value-unit{font-size:10px;font-weight:460;color:rgba(255,255,255,.36);margin-left:0;letter-spacing:.02em;white-space:nowrap}
+.home-weekly-card-arrow{font-size:11px;color:rgba(255,255,255,.26);flex-shrink:0;margin-left:12px;transition:color .24s,transform .24s;letter-spacing:.04em}
+.home-weekly-card.has-link:hover .home-weekly-card-arrow{color:rgba(255,255,255,.52);transform:translateX(3px)}
 .home-visual{grid-column:2;grid-row:1;position:relative;align-self:center;justify-self:center;width:100%;max-width:240px;aspect-ratio:1;margin-top:0;pointer-events:none;color:rgba(255,255,255,.14)}
 .home-visual--aperture{width:min(220px,28vw);height:auto;max-width:240px;max-height:240px;filter:none}
 .home-aperture{width:100%;height:100%;display:block}
@@ -856,6 +883,26 @@ body.login-guide-active #login-guide-canvas{opacity:1}
 .city-search-results::-webkit-scrollbar{width:3px}
 .city-search-results::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px}
 .city-search-hint{font-size:12px;color:rgba(255,255,255,.28);text-align:center;padding:20px 0 12px}
+/* 本周聆听统计弹窗 */
+.weekly-stats-modal{max-width:440px;width:92vw;text-align:left;padding:28px 28px 22px}
+.weekly-stats-modal h2{text-align:left;margin-bottom:20px}
+.weekly-stats-summary{display:flex;gap:12px;margin-bottom:20px}
+.weekly-stats-summary-item{flex:1;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.025);text-align:center;min-width:0}
+.weekly-stats-summary-val{font-size:20px;font-weight:720;color:rgba(255,255,255,.85);line-height:1.15;margin-bottom:3px;letter-spacing:-.01em}
+.weekly-stats-summary-label{font-size:9px;color:rgba(255,255,255,.34);font-weight:500;letter-spacing:.08em;text-transform:uppercase}
+.weekly-stats-section{margin-bottom:16px}
+.weekly-stats-section-title{font-size:10px;font-weight:650;color:rgba(255,255,255,.40);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+.weekly-stats-list{list-style:none;padding:0;margin:0}
+.weekly-stats-list li{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px;color:rgba(255,255,255,.72)}
+.weekly-stats-list li:last-child{border-bottom:none}
+.weekly-stats-rank{width:22px;font-size:11px;font-weight:700;color:rgba(255,255,255,.24);text-align:center;flex-shrink:0}
+.weekly-stats-list li:nth-child(1) .weekly-stats-rank{color:var(--champagne)}
+.weekly-stats-list li:nth-child(2) .weekly-stats-rank{color:rgba(200,200,210,.48)}
+.weekly-stats-list li:nth-child(3) .weekly-stats-rank{color:rgba(180,150,130,.40)}
+.weekly-stats-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.weekly-stats-name-sub{color:rgba(255,255,255,.26);font-size:11px;margin-left:4px}
+.weekly-stats-count{font-size:11px;color:rgba(255,255,255,.30);flex-shrink:0}
+.weekly-stats-empty{font-size:12.5px;color:rgba(255,255,255,.28);padding:6px 0}
 .city-search-status{font-size:12px;color:rgba(255,255,255,.28);text-align:center;padding:20px 0 12px}
 .city-search-item{padding:9px 12px;border-radius:8px;cursor:pointer;transition:background .18s,color .18s;display:flex;flex-direction:column;gap:2px}
 .city-search-item:hover{background:rgba(244,210,138,.10)}
@@ -2083,6 +2130,8 @@ html.control-glass-svg-ok #visual-guide-btn:hover{
 <section id="empty-home" aria-label="Mineradio home">
   <div class="empty-home-shell">
     <div class="home-hero">
+      <div class="home-mood-glow home-mood-glow--bl glow-neutral" id="home-glow-bl"></div>
+      <div class="home-mood-glow home-mood-glow--tr glow-neutral" id="home-glow-tr"></div>
       <div class="home-hero-inner">
       <div class="home-left-group">
         <div class="home-top-block">
@@ -2113,6 +2162,13 @@ html.control-glass-svg-ok #visual-guide-btn:hover{
           <span class="home-weather-radio-prompt-text" id="home-weather-radio-prompt-text"></span>
           <svg class="home-weather-radio-prompt-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
+        <div class="home-weekly-card has-link" id="home-weekly-card" style="display:none" onclick="openWeeklyStatsModal()">
+          <div class="home-weekly-card-left">
+            <div class="home-weekly-card-label" id="home-weekly-label">本周聆听</div>
+            <div class="home-weekly-card-value" id="home-weekly-value">0 首</div>
+          </div>
+          <span class="home-weekly-card-arrow">查看 →</span>
+        </div>
         <div class="home-quick-row">
           <button class="home-chip home-console-chip home-console-chip--thin" type="button" onclick="openHomePlayerConsole()">展开播放器控制台</button>
         </div>
@@ -2802,6 +2858,16 @@ html.control-glass-svg-ok #visual-guide-btn:hover{
   </div>
 </div>
 
+<!-- 本周聆听统计弹窗 -->
+<div id="weekly-stats-modal" class="modal-mask" onclick="if(event.target===this)closeWeeklyStatsModal()">
+  <div class="modal weekly-stats-modal">
+    <h2>本周聆听</h2>
+    <div id="weekly-stats-body"></div>
+    <div class="btn-row">
+      <button class="modal-btn" onclick="closeWeeklyStatsModal()">关闭</button>
+    </div>
+  </div>
+</div>
 
 <!-- 在线歌单导入弹窗 -->
 <div id="online-playlist-modal" class="modal-mask" onclick="if(event.target===this)closeOnlinePlaylistModal()">
@@ -15967,6 +16033,98 @@ function homeListenSummary() {
   var totalPlays = Object.keys(listenStatsState.songs || {}).reduce(function(sum, key){ return sum + ((listenStatsState.songs[key] && listenStatsState.songs[key].plays) || 0); }, 0);
   return { recent: recent, topSong: topSong, topArtist: topArtist, totalPlays: totalPlays };
 }
+function calcWeeklyListenStats() {
+  var history = listenStatsState.history || [];
+  if (!history.length) return null;
+  var now = Date.now();
+  var weekMs = 7 * 24 * 60 * 60 * 1000;
+  var cutoff = now - weekMs;
+  var recentPlays = history.filter(function(r) { return r && r.playedAt >= cutoff; });
+  if (!recentPlays.length) return null;
+  var totalSongs = recentPlays.length;
+  var totalMs = recentPlays.reduce(function(sum, r) { return sum + ((r.listenMs > 0 && r.listenMs < 7200000) ? r.listenMs : 0); }, 0);
+  var totalMinutes = Math.round(totalMs / 60000);
+  var uniqueSongs = {};
+  recentPlays.forEach(function(r) { if (r && r.key) uniqueSongs[r.key] = true; });
+  return {
+    totalPlays: totalSongs,
+    uniqueSongs: Object.keys(uniqueSongs).length,
+    totalMinutes: totalMinutes,
+    totalHours: totalMinutes >= 60 ? (totalMinutes / 60).toFixed(1) : 0,
+  };
+}
+function calcWeeklyTopArtists() {
+  var history = listenStatsState.history || [];
+  var now = Date.now();
+  var weekMs = 7 * 24 * 60 * 60 * 1000;
+  var cutoff = now - weekMs;
+  var map = {};
+  history.forEach(function(r) {
+    if (!r || r.playedAt < cutoff) return;
+    var name = r.artist || '未知歌手';
+    if (!map[name]) map[name] = { name: name, plays: 0, listenMs: 0 };
+    map[name].plays++;
+    map[name].listenMs += (r.listenMs > 0 && r.listenMs < 7200000) ? r.listenMs : 0;
+  });
+  var list = Object.keys(map).map(function(k) { return map[k]; });
+  list.sort(function(a, b) { return b.plays - a.plays || b.listenMs - a.listenMs; });
+  return list.slice(0, 5);
+}
+function calcWeeklyTopSongs() {
+  var history = listenStatsState.history || [];
+  var now = Date.now();
+  var weekMs = 7 * 24 * 60 * 60 * 1000;
+  var cutoff = now - weekMs;
+  var map = {};
+  history.forEach(function(r) {
+    if (!r || !r.key || r.playedAt < cutoff) return;
+    if (!map[r.key]) map[r.key] = { name: r.name || '未知', artist: r.artist || '', plays: 0, listenMs: 0 };
+    map[r.key].plays++;
+    map[r.key].listenMs += (r.listenMs > 0 && r.listenMs < 7200000) ? r.listenMs : 0;
+  });
+  var list = Object.keys(map).map(function(k) { return map[k]; });
+  list.sort(function(a, b) { return b.plays - a.plays || b.listenMs - a.listenMs; });
+  return list.slice(0, 5);
+}
+function openWeeklyStatsModal() {
+  var weekStats = calcWeeklyListenStats();
+  if (!weekStats || weekStats.totalPlays <= 0) return;
+  var topArtists = calcWeeklyTopArtists();
+  var topSongs = calcWeeklyTopSongs();
+  var body = document.getElementById('weekly-stats-body');
+  if (!body) return;
+  var timeStr = weekStats.totalHours > 0 ? (weekStats.totalHours + ' 小时') : weekStats.totalMinutes >= 1 ? (weekStats.totalMinutes + ' 分钟') : '<1 分钟';
+  var html = '<div class="weekly-stats-summary">';
+  html += '<div class="weekly-stats-summary-item"><div class="weekly-stats-summary-val">' + weekStats.totalPlays + '</div><div class="weekly-stats-summary-label">播放次数</div></div>';
+  html += '<div class="weekly-stats-summary-item"><div class="weekly-stats-summary-val">' + timeStr + '</div><div class="weekly-stats-summary-label">聆听时长</div></div>';
+  html += '<div class="weekly-stats-summary-item"><div class="weekly-stats-summary-val">' + weekStats.uniqueSongs + '</div><div class="weekly-stats-summary-label">不同歌曲</div></div>';
+  html += '</div>';
+  html += '<div class="weekly-stats-section"><div class="weekly-stats-section-title">最常听的歌手</div>';
+  if (topArtists.length) {
+    html += '<ol class="weekly-stats-list">';
+    topArtists.forEach(function(a, i) {
+      html += '<li><span class="weekly-stats-rank">' + (i + 1) + '</span><span class="weekly-stats-name">' + escHtml(a.name) + '</span><span class="weekly-stats-count">' + a.plays + ' 次</span></li>';
+    });
+    html += '</ol>';
+  } else { html += '<div class="weekly-stats-empty">暂无数据</div>'; }
+  html += '</div>';
+  html += '<div class="weekly-stats-section"><div class="weekly-stats-section-title">最常听的歌曲</div>';
+  if (topSongs.length) {
+    html += '<ol class="weekly-stats-list">';
+    topSongs.forEach(function(s, i) {
+      html += '<li><span class="weekly-stats-rank">' + (i + 1) + '</span><span class="weekly-stats-name">' + escHtml(s.name) + '<span class="weekly-stats-name-sub">' + escHtml(s.artist) + '</span></span><span class="weekly-stats-count">' + s.plays + ' 次</span></li>';
+    });
+    html += '</ol>';
+  } else { html += '<div class="weekly-stats-empty">暂无数据</div>'; }
+  html += '</div>';
+  body.innerHTML = html;
+  var mask = document.getElementById('weekly-stats-modal');
+  if (mask) mask.classList.add('show');
+}
+function closeWeeklyStatsModal() {
+  var mask = document.getElementById('weekly-stats-modal');
+  if (mask) mask.classList.remove('show');
+}
 function fallbackHomeTiles() {
   return [
     { kind: 'search', title: '搜索一首歌', sub: '酷狗音乐', query: '' },
@@ -16293,6 +16451,58 @@ function renderHomeDiscover() {
       wrPrompt.classList.remove('show');
     }
   }
+
+  // --- 心情光晕更新（映射表驱动 + 天气有效性校验）---
+  var glowBl = document.getElementById('home-glow-bl');
+  var glowTr = document.getElementById('home-glow-tr');
+  if (glowBl && glowTr) {
+    var clsBl = 'home-mood-glow home-mood-glow--bl';
+    var clsTr = 'home-mood-glow home-mood-glow--tr';
+    // 天气有效性校验：必须有 mood.key 且 temperature 为有效数字
+    var weatherValid = !!(weather && weather.mood && weather.mood.key && typeof weather.temperature === 'number');
+    var moodKey = weatherValid ? weather.mood.key : '';
+    if (!weatherValid || !moodKey) {
+      // 无效/加载中 → 中性灰色极低透明度兜底
+      clsBl += ' glow-neutral'; clsTr += ' glow-neutral';
+    } else {
+      var isNight = moodKey.indexOf('-night') !== -1;
+      // 暖色：晴天系 clear
+      if (moodKey.indexOf('clear') === 0) {
+        clsBl += ' glow-warm'; clsTr += ' glow-warm';
+      } else {
+        // 冷色：雨 rain / 暴风 storm / 潮湿 humid / 阴 cloudy / 雪 snow / 毛毛雨 drizzle / 雾 fog 等
+        clsBl += ' glow-cool'; clsTr += ' glow-cool';
+      }
+      if (isNight) {
+        clsBl += ' glow-night'; clsTr += ' glow-night';
+      }
+    }
+    glowBl.className = clsBl;
+    glowTr.className = clsTr;
+  }
+
+  // --- 本周聆听卡片 ---
+  var weeklyCard = document.getElementById('home-weekly-card');
+  var weeklyValue = document.getElementById('home-weekly-value');
+  var weeklyLabel = document.getElementById('home-weekly-label');
+  if (weeklyCard && weeklyValue) {
+    var weekStats = calcWeeklyListenStats();
+    if (!weekStats || weekStats.totalPlays <= 0) {
+      weeklyCard.style.display = 'none';
+      weeklyCard.classList.remove('has-link');
+    } else {
+      var displayText = '<span class="home-weekly-card-num">' + weekStats.totalPlays + '</span><span class="home-weekly-card-value-unit">首</span>';
+      if (weekStats.totalHours > 0) {
+        displayText += '<span class="home-weekly-card-num">' + weekStats.totalHours + '</span><span class="home-weekly-card-value-unit">小时</span>';
+      } else if (weekStats.totalMinutes >= 1) {
+        displayText += '<span class="home-weekly-card-num">' + weekStats.totalMinutes + '</span><span class="home-weekly-card-value-unit">分钟</span>';
+      }
+      if (weeklyLabel) weeklyLabel.textContent = '本周聆听';
+      weeklyValue.innerHTML = displayText;
+      weeklyCard.style.display = 'flex';
+    }
+  }
+
   var daily = homeDiscoverState.songs[0] || null;
   var cardSongB = homeDiscoverState.songs[1] || null;
   var cardSongC = homeDiscoverState.songs[2] || null;
@@ -17185,6 +17395,11 @@ document.addEventListener('keydown', function(e) {
     if (mask && mask.classList.contains('show')) {
       e.preventDefault();
       closeCitySearchModal();
+    }
+    var wm = document.getElementById('weekly-stats-modal');
+    if (wm && wm.classList.contains('show')) {
+      e.preventDefault();
+      closeWeeklyStatsModal();
     }
   }
 });
